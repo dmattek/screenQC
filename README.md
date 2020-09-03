@@ -19,10 +19,10 @@ The app calculates the follwoing plate quality indices:
 
 ## Further reading
 
-(@) *Increasing the Content of High-Content Screening: An Overview* (2014); [DOI: 10.1177/1087057114528537](https://dx.doi.org/10.1177/1087057114528537 "External link").
-(@) *Data Analysis Approaches in High Throughput Screening* (2013); [DOI: 10.5772/52508](https://dx.doi.org/10.5772/52508 "External link").
-(@) *Statistical practice in high-throughput screening data analysis* (2006); [DOI: 10.1038/nbt1186](https://dx.doi.org/10.1038/nbt1186 "External link").
-(@) *A Simple Statistical Parameter for Use in Evaluation and Validation of High Throughput Screening Assays* (1999); [DOI: 10.1177/108705719900400206](https://doi.org/10.1177/108705719900400206 "External link").
+1. *Increasing the Content of High-Content Screening: An Overview* (2014); [DOI: 10.1177/1087057114528537](https://dx.doi.org/10.1177/1087057114528537 "External link").
+2. *Data Analysis Approaches in High Throughput Screening* (2013); [DOI: 10.5772/52508](https://dx.doi.org/10.5772/52508 "External link").
+3. *Statistical practice in high-throughput screening data analysis* (2006); [DOI: 10.1038/nbt1186](https://dx.doi.org/10.1038/nbt1186 "External link").
+4. *A Simple Statistical Parameter for Use in Evaluation and Validation of High Throughput Screening Assays* (1999); [DOI: 10.1177/108705719900400206](https://doi.org/10.1177/108705719900400206 "External link").
 
 ## Getting started
 
@@ -35,7 +35,7 @@ The app works on all major OS (Windows, macOS, standard Linux distributions) and
 
 The app depends on several packages which should be automatically installed when the app is launched for the first time. Alternatively, the complete list of dependencies can be manually installed from the R console by typing:
 
-```
+```r
 install.packages(
   c(
     "shiny", "shinydashboard",
