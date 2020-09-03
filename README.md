@@ -69,5 +69,5 @@ runGitHub("dmattek/screenQC")
 However, for performance reasons you might prefer to switch to an offline installation as outlined above!
 
 ### Run on a server
-The app can be deployed on RStudio/Shiny server. Please follow the instructions [here](https://shiny.rstudio.com/deploy/ "External link: shiny hosting").
+To deploy the app on RStudio/Shiny server, follow the instructions [here](https://shiny.rstudio.com/deploy/ "External link: shiny hosting").
 
