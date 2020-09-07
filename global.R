@@ -9,10 +9,12 @@
 required_packages = c(
   "shiny",
   "shinydashboard",
+  "shinyBS",
   "data.table",
   "ggplot2",
   "plotly",
-  "ggthemes"
+  "ggthemes",
+  "RColorBrewer"
 )
 missing_packages =
   required_packages[!(required_packages %in% installed.packages()[, "Package"])]
@@ -27,10 +29,56 @@ if (length(missing_packages)) {
 }
 
 library(shinydashboard)
+library(shinyBS)
 library(data.table)
 library(ggplot2)
-library(ggthemes)
 library(plotly)
+library(ggthemes)
+library(RColorBrewer)
+
+## Help text ----
+helpTextServer = list(
+  chBrobust ="Calculate robust statistics: median instead of the mean, MAD instead of SD.",
+  rBscreenType = "Choose antagonist when testing inhibitors, agonist for activators.",
+  alPlateFormat = "Choose a plate format for synthetic data, e.g. 96-, 384-, 1536-well.",
+  alSSMDcrit = "<p>Choose quality control level for the strictly 
+  standardized mean difference (SSMD).</p>
+  <p>Learn more <a href=\"https://en.wikipedia.org/wiki/Strictly_standardized_mean_difference#Quality_control\" target=\"_blank\">here</a>.</p>",
+  alSSMDinfo = "<p>Strictly standardized mean difference (SSMD)
+  is a measure of effect size. It is the mean divided by the 
+  standard deviation of a difference of two random values respectively 
+  from two groups.</p>
+  <p>Learn more <a href=\"https://en.wikipedia.org/wiki/Strictly_standardized_mean_difference#Statistical_parameter\" target=\"_blank\">here</a>.</p>",
+  alZprimeInfo = "<p>The Z'-factor is the characteristic parameter for 
+  the quality of the assay itself, without intervention of test compounds.</p>
+  <p>
+  <table style=\"width:100%\">
+  <tr>
+    <th>Z'-factor</th>
+    <th>Interpretation</th> 
+  </tr>
+  <tr>
+    <td>1.0</td>
+    <td>Theoretical maximum.</td> 
+  </tr>
+  <tr>
+    <td>0.5 - 1.0</td>
+    <td>An excellent assay.</td> 
+  </tr>
+  <tr>
+    <td>0 - 0.5</td>
+    <td>A marginal assay.</td> 
+  </tr>
+  <tr>
+    <td>Less than 0</td>
+    <td>Too much overlap between the positive and negative controls for the assay to be useful.</td> 
+  </tr>
+  </table>
+  </p>
+  <p>Learn more <a href=\"https://en.wikipedia.org/wiki/Z-factor#Definition\" target=\"_blank\">here</a>.</p>"
+)
+
+## Plate quality ----
 
 calcZfactor = function(inDT, 
                        inColMeas = "meas",
@@ -115,7 +163,11 @@ calcSSMD = function(inDT,
                     inWellType = list(ctrlNeg = "Ctrl Neg",
                                       ctrlPos = "Ctrl Pos",
                                       sample = "Sample"),
+                    inScreenType = c("inhibition",
+                                     "activation"),
                     inRobust = F) {
+  
+  inScreenType = match.arg(inScreenType)
   
   # Aggregate input data
   if(inRobust) {
@@ -139,8 +191,16 @@ calcSSMD = function(inDT,
   locCtrlPosMn = locDTaggr[get(inColType) == inWellType[["ctrlPos"]]][["wellMn"]]
   locCtrlPosSd = locDTaggr[get(inColType) == inWellType[["ctrlPos"]]][["wellSd"]]
   
-  return((locCtrlPosMn - locCtrlNegMn) / sqrt(locCtrlPosSd^2 + locCtrlNegSd^2))
+  if (inScreenType == "inhibition") {
+    locRes = (locCtrlPosMn - locCtrlNegMn) / sqrt(locCtrlPosSd^2 + locCtrlNegSd^2)
+  } else {
+    locRes = (locCtrlNegMn - locCtrlPosMn) / sqrt(locCtrlPosSd^2 + locCtrlNegSd^2)
+  }
+  
+  return(locRes)
 }
+
+## Plate normalisations ----
 
 calcZscore = function(inDT, 
                       inColMeas = "meas",
@@ -208,5 +268,43 @@ calcNPI = function(inDT,
 }
 
 
+## Hit selection ----
+
+calcHits = function(inDT, 
+                    inColMeas = "meas",
+                    inColType = "type",
+                    inWellType = list(ctrlNeg = "Ctrl Neg",
+                                      ctrlPos = "Ctrl Pos",
+                                      sample = "Sample"),
+                    inScreenType = c("inhibition",
+                                     "activation"),
+                    inThr = -3,
+                    inRobust = F) {
+  
+  inScreenType = match.arg(inScreenType)
+  
+  if(inRobust) {
+    locDTaggr = inDT[get(inColType) == inWellType[["sample"]],
+                     .(wellMn = median(get(inColMeas)),
+                       wellSd = mad(get(inColMeas)))]
+  } else {
+    locDTaggr = inDT[get(inColType) == inWellType[["sample"]],
+                     .(wellMn = mean(get(inColMeas)),
+                       wellSd = sd(get(inColMeas)))]
+  }
+  
+  inDT[,
+       zScore := (get(inColMeas) - locDTaggr[["wellMn"]]) / locDTaggr[["wellSd"]]]
+  
+  if (inScreenType == "inhibition") {
+    inDT[,
+         hits := zScore < inThr]
+  } else {
+    inDT[,
+         hits := zScore > inThr]
+  }
+  
+  return(inDT)
+}
 
 

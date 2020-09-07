@@ -38,9 +38,10 @@ The app depends on several packages which should be automatically installed when
 ```r
 install.packages(
   c(
-    "shiny", "shinydashboard",
+    "shiny", "shinydashboard", "shinyBS",
     "data.table", 
-    "ggplot2", "ggthemes","plotly")) 
+    "ggplot2", "plotly",
+    "ggthemes", "RColorBrewer")) 
 ```
 
 For new R users, once you have installed R, we recommend to use R from Rstudio. It provides an excellent programming interface and makes it slightly easier to run shiny apps with a single click! Instructions for installation can be found on the Rstudio [website](https://rstudio.com/ "External link").

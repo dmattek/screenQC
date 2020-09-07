@@ -5,7 +5,7 @@
 # This is the server logic for a Shiny web application.
 #
 
-server <- function(input, output) {
+server <- function(input, output, session) {
   
   dataCtrlNeg = reactive({
     cat("server:dataCtrlNeg\n")
@@ -37,18 +37,19 @@ server <- function(input, output) {
       as.integer(input$slCtrlNegN)
     
     # Random dt with samples
+    # The same mean & sd as negative control
     locDT = data.table(type = rep("Sample", locNwells),
                        meas = rnorm(n = locNwells,
-                                    mean = input$slSamplesMn,
-                                    sd = input$slSamplesSd))
+                                    mean = input$slCtrlNegMn,
+                                    sd = input$slCtrlNegSd))
     
     # Add "hits"
     if (input$slHitsN > 0 ) {
       locHits = sample(nrow(locDT), input$slHitsN)
       locDT[locHits,
             `:=`(meas = rnorm(n = length(locHits),
-                              mean = input$slCtrlPosMn,
-                              sd = input$slCtrlPosSd))]
+                              mean = input$slHitsMn,
+                              sd = input$slHitsSd))]
     }
     
     return(locDT)
@@ -62,18 +63,20 @@ server <- function(input, output) {
       dataCtrlNeg(),
       dataCtrlPos(),
       dataSamples())
-    
-    locDT[,
-          type := factor(type, 
-                         levels = c("Ctrl Neg",
-                                    "Ctrl Pos",
-                                    "Sample"))]
+    # 
+    # locDT[,
+    #       type := factor(type, 
+    #                      levels = c("Ctrl Neg",
+    #                                 "Ctrl Pos",
+    #                                 "Sample"))]
     locDT[,
           meas := signif(meas, 4)]    
     
     return(locDT)
   })
   
+  # Prepare data in long format for plotting with ggplot;
+  # add row and column numbers depending on plate format.
   dataPlotHM = reactive({
     cat("server:dataPlotHM\n")
     
@@ -115,8 +118,10 @@ server <- function(input, output) {
     cat("server:vBzfactor\n")
     
     valueBox(
-      value = sprintf("%.2f", calcZfactor(dataMain(),
-                                          inRobust = input$chBrobust)), 
+      value = sprintf("%.2f", 
+                      calcZfactor(dataMain(),
+                                  inRobust = input$chBrobust,
+                                  inScreenType = input$rBscreenType)), 
       subtitle = "Z-Factor", 
       color = "light-blue"
     )
@@ -141,20 +146,26 @@ server <- function(input, output) {
     }
     
     
-    valueBox(
+    locBox = valueBox(
       value = sprintf("%.2f %s", 
                       locZp,
                       locText), 
+      href = "#",
       subtitle = "Z-prime", 
-      color = locColor
-    )
+      color = locColor)
+    
+    locBox$children[[1]]$attribs$class<-"action-button"
+    locBox$children[[1]]$attribs$id<-"button_vBzprime"
+    
+    return(locBox)
   })
   
   output$vBssmd = renderValueBox({
     cat("server:vBssmd\n")
     
     locSsmd = calcSSMD(dataMain(),
-                       inRobust = input$chBrobust)
+                       inRobust = input$chBrobust,
+                       inScreenType = input$rBscreenType)
     
     switch(input$selSSMDctrl,
            "moderate" = {locCtrl = c(-2, -1, -0.5)},
@@ -178,13 +189,18 @@ server <- function(input, output) {
     }
     
     
-    valueBox(
+    locBox = valueBox(
       value = sprintf("%.2f %s", 
                       locSsmd,
-                      locText), 
+                      locText),
+      href = "#",
       subtitle = "SSMD", 
-      color = locColor
-    )
+      color = locColor)
+    
+    locBox$children[[1]]$attribs$class<-"action-button"
+    locBox$children[[1]]$attribs$id<-"button_vBssmd"
+    
+    return(locBox)
   })
   
   
@@ -223,63 +239,188 @@ server <- function(input, output) {
     
     locDT = dataPlotHM()
     
-    locP = ggplot(data = locDT,
-                  aes(x = col,
-                      y = row,
-                      label = type)) +
-      geom_tile(aes(fill = meas)) +
-      scale_fill_distiller(palette = "RdYlBu") +
-      scale_y_discrete(limits = rev(unique(locDT[["row"]]))) +
-      xlab("") +
-      ylab("") +
-      theme_bw()
+    # Convert data table to a matrix for plotly
+    # row&col numbers
+    locRow = rev(unique(locDT[["row"]]))
+    locCol = unique(locDT[["col"]])
     
-    ggplotly(locP)
+    # data
+    locM = matrix(as.numeric(locDT[["meas"]]), 
+                  nrow = length(locRow),
+                  ncol = length(locCol))
+    locM = locM[seq(from = length(locRow),
+                    to = 1,
+                    by = -1),]
+    
+    # well types
+    locText = matrix(locDT[["type"]], 
+                     nrow = length(locRow),
+                     ncol = length(locCol))
+    locText = locText[seq(from = length(locRow),
+                          to = 1,
+                          by = -1),]
+
+    plot_ly(
+      x = locCol, 
+      y = locRow,
+      z = locM, 
+      text = locText,
+      type = "heatmap",
+      hovertemplate = paste("Meas: %{z}<br>",
+                            "Col: %{x}<br>",
+                            "Row: %{y}<br>",
+                            "Type: %{text}",
+                            "<extra></extra>"), 
+      colors = rev(RColorBrewer::brewer.pal(n = 11, 
+                                            name = "RdYlBu")))
+
   })
   
-  output$plotlyHMz = renderPlotly({
-    cat("server:plotlyHMz\n")
+  output$plotlyHMzscore = renderPlotly({
+    cat("server:plotlyHMzscore\n")
     
     locDT = dataPlotHM()
     locDT = calcZscore(locDT,
                        inRobust = input$chBrobust)
-
-    locP = ggplot(data = locDT,
-                  aes(x = col,
-                      y = row,
-                      label = type)) +
-      geom_tile(aes(fill = zScore)) +
-      scale_fill_distiller(palette = "RdYlBu") +
-      scale_y_discrete(limits = rev(unique(locDT[["row"]]))) +
-      xlab("") +
-      ylab("") +
-      theme_bw()
     
-    ggplotly(locP)
+    locRow = rev(unique(locDT[["row"]]))
+    locCol = unique(locDT[["col"]])
+    locM = matrix(as.numeric(locDT[["zScore"]]), 
+                  nrow = length(locRow),
+                  ncol = length(locCol))
+    locM = locM[seq(from = length(locRow),
+                    to = 1,
+                    by = -1),]
+    
+    locText = matrix(locDT[["type"]], 
+                     nrow = length(locRow),
+                     ncol = length(locCol))
+    locText = locText[seq(from = length(locRow),
+                          to = 1,
+                          by = -1),]
+    
+    plot_ly(
+      x = locCol, 
+      y = locRow,
+      z = locM, 
+      text = locText,
+      type = "heatmap",
+      hovertemplate = paste("z-score: %{z}<br>",
+                            "Col: %{x}<br>",
+                            "Row: %{y}<br>",
+                            "Type: %{text}",
+                            "<extra></extra>"), 
+      colors = rev(RColorBrewer::brewer.pal(n = 11, 
+                                            name = "RdYlBu")))
   })
   
-  output$plotlyHMn = renderPlotly({
-    cat("server:plotlyHMn\n")
+  output$plotlyHMnpi = renderPlotly({
+    cat("server:plotlyHMnpi\n")
     
     locDT = dataPlotHM()
     locDT = calcNPI(locDT,
-                    inRobust = input$chBrobust)
+                    inRobust = input$chBrobust,
+                    inScreenType = input$rBscreenType)
     
-    locP = ggplot(data = locDT,
-                  aes(x = col,
-                      y = row,
-                      label = type)) +
-      geom_tile(aes(fill = NPI)) +
-      scale_fill_distiller(palette = "RdYlBu", direction = 1) +
-      scale_y_discrete(limits = rev(unique(locDT[["row"]]))) +
-      xlab("") +
-      ylab("") +
-      theme_bw()
+    locRow = rev(unique(locDT[["row"]]))
+    locCol = unique(locDT[["col"]])
+    locM = matrix(as.numeric(locDT[["NPI"]]), 
+                  nrow = length(locRow),
+                  ncol = length(locCol))
+    locM = locM[seq(from = length(locRow),
+                    to = 1,
+                    by = -1),]
     
-    ggplotly(locP)
+    locText = matrix(locDT[["type"]], 
+                     nrow = length(locRow),
+                     ncol = length(locCol))
+    locText = locText[seq(from = length(locRow),
+                          to = 1,
+                          by = -1),]
+    
+    plot_ly(
+      x = locCol, 
+      y = locRow,
+      z = locM, 
+      text = locText,
+      type = "heatmap",
+      hovertemplate = paste("NPI: %{z}<br>",
+                            "Col: %{x}<br>",
+                            "Row: %{y}<br>",
+                            "Type: %{text}",
+                            "<extra></extra>"), 
+      colors = rev(RColorBrewer::brewer.pal(n = 11, 
+                                            name = "RdYlBu")))
+  })
+  
+  output$plotlyHMhits = renderPlotly({
+    cat("server:plotlyHMhits\n")
+    
+    locDT = dataPlotHM()
+    locDT = calcHits(locDT,
+                     inRobust = input$chBrobust,
+                     inScreenType = input$rBscreenType,
+                     inThr = input$slHitsThr)
+    
+    locRow = rev(unique(locDT[["row"]]))
+    locCol = unique(locDT[["col"]])
+    locM = matrix(as.numeric(locDT[["hits"]]), 
+                  nrow = length(locRow),
+                  ncol = length(locCol))
+    locM = locM[seq(from = length(locRow),
+                    to = 1,
+                    by = -1),]
+    
+    locText = matrix(locDT[["type"]], 
+                     nrow = length(locRow),
+                     ncol = length(locCol))
+    locText = locText[seq(from = length(locRow),
+                          to = 1,
+                          by = -1),]
+    
+    # From: https://stackoverflow.com/a/49944091/1898713
+    locColorScale <- data.table(z=c(0, 0.5, 0.5, 1),
+                                col=rep(ggthemes::tableau_color_pal(palette = "Color Blind")(2), 
+                                        each = 2))
+    locColorScale[,
+                  col := as.character(col)]
+    plot_ly(
+      x = locCol, 
+      y = locRow,
+      z = locM, 
+      text = locText,
+      type = "heatmap",
+      hovertemplate = paste("Hit: %{z}<br>",
+                            "Col: %{x}<br>",
+                            "Row: %{y}<br>",
+                            "Type: %{text}",
+                            "<extra></extra>"),
+      colorscale = locColorScale,
+      colorbar=list(tickvals=c(0.25,0.75), 
+                    ticktext=c("F","T"))
+    )
+    
   })
   
   
+  # Pop-overs ----
+  addPopover(session,
+             "alPlateFormat",
+             title = "Plate format",
+             content = helpTextServer[["alPlateFormat"]],
+             trigger = "click")
   
+  addPopover(session,
+             "alSSMDcrit",
+             title = "SSMD criteria",
+             content = helpTextServer[["alSSMDcrit"]],
+             trigger = "click")
   
+  observeEvent(input$button_vBzprime, {
+    toggleModal(session, "modal_vBzprime", "open")
+  })
+  
+  observeEvent(input$button_vBssmd, {
+    toggleModal(session, "modal_vBssmd", "open")
+  })
 }
