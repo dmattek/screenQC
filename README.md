@@ -17,6 +17,8 @@ The app calculates the follwoing plate quality indices:
 - [SSMD](https://en.wikipedia.org/wiki/Strictly_standardized_mean_difference), strictly standardized mean difference,
 - [Z-factor](https://en.wikipedia.org/wiki/Z-factor) and Z-prime.
 
+![screenQC](screenshots/screenQC-screenshot.png)
+
 ## Further reading
 
 1. *Increasing the Content of High-Content Screening: An Overview* (2014); [DOI: 10.1177/1087057114528537](https://dx.doi.org/10.1177/1087057114528537 "External link").
