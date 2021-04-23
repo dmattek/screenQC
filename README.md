@@ -2,17 +2,17 @@
 
 Interactively explore quantitative concepts of high-content screening.
 
-Access the running instance of the web-app [here](https://macdobry.shinyapps.io/screenQC/ "External link to a running app").
+Access a running instance of the web-app [here](https://macdobry.shinyapps.io/screenQC/ "External link to a running app").
 
 ## What does the app do?
 
-The app illustrates quantitative concepts of [high-content screening](https://en.wikipedia.org/wiki/High-content_screening "External link to Wikipedia"), such as a z-score, z-factor, z-prime, normalised percentage inhibition, standardized mean difference.
+The app illustrates quantitative concepts of [high-content screening](https://en.wikipedia.org/wiki/High-content_screening "External link to Wikipedia"), such as z-score, z-factor, z-prime, normalised percentage inhibition, standardized mean difference.
 
-The app generates synthetic data for a desired plate format (e.g. 96, 384, 1536-well). The data includes the measurement samples, and the negative and positive controls. The user can change the number of control wells, their sample mean and standard deviation. Additionally, "hits" with the mean and standard deviation corresponding to the positive control can be added to the dataset.
+The app generates synthetic data for a desired plate format (e.g. 96, 384, 1536-well). The data includes measurement samples, and negative and positive controls. The user can change the number of control wells, their sample mean and standard deviation. Additionally, "hits" with the mean and standard deviation corresponding to the positive control can be added to the dataset.
 
 Synthetic data can be plotted as distributions, box-plots or heatmaps with raw or normalized data. Normalisations include the [z-score](https://en.wikipedia.org/wiki/Standard_score) and Normalised Percentage Inhibition.
 
-The app calculates the follwoing plate quality indices:
+The app calculates the following plate quality indices:
 
 - [SSMD](https://en.wikipedia.org/wiki/Strictly_standardized_mean_difference), strictly standardized mean difference,
 - [Z-factor](https://en.wikipedia.org/wiki/Z-factor) and Z-prime.
