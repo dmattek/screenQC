@@ -16,7 +16,9 @@ Data generation is reproducible: a given random seed and a given set of paramete
 
 Synthetic data can be plotted as distributions, box-plots or heatmaps with raw or normalized data. Normalisations include the [z-score](https://en.wikipedia.org/wiki/Standard_score) and Normalised Percentage Inhibition.
 
-Because the app knows which wells were spiked with the "hit" distribution, the wells called by the z-score threshold can be scored against that ground truth. On the *Hits* heatmap the cell colour is the well *called* by the threshold, while a circle marks the wells that were *really* spiked: a circle on a called well is a true positive, a circle on an uncalled well a miss, and a called well without a circle a false positive. The same comparison is reported below the plate as a confusion matrix with the sensitivity, false positive rate and precision, which shows the trade-off involved in choosing a threshold. Only sample wells are counted; the controls are excluded.
+Hits can be called on the raw measurement, on the z-score, or on the NPI, with the threshold slider re-ranged to suit the chosen quantity. Note that NPI runs opposite to the raw signal — an active well sits near 100 in an antagonist screen and near 0 in an agonist screen — so an NPI threshold selects the wells above it while the other two select the wells below.
+
+Because the app knows which wells were spiked with the "hit" distribution, the wells called by the threshold can be scored against that ground truth. On the *Hits* heatmap the cell colour is the well *called* by the threshold, while a circle marks the wells that were *really* spiked: a circle on a called well is a true positive, a circle on an uncalled well a miss, and a called well without a circle a false positive. The same comparison is reported below the plate as a confusion matrix with the sensitivity, false positive rate and precision, which shows the trade-off involved in choosing a threshold. Only sample wells are counted; the controls are excluded.
 
 The app calculates the following plate quality indices:
 

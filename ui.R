@@ -171,10 +171,29 @@ myBody = dashboardBody(
                          plotlyOutput("plotlyHMnpi", height = 400)),
                 tabPanel("Hits",
                          plotlyOutput("plotlyHMhits", height = 400),
-                         sliderInput("slHitsThr",
-                                     "z-score threshold",
-                                     min = -6, max = 6,
-                                     value = -3),
+
+                         fluidRow(
+                           column(
+                             width = 4,
+                             selectInput("selHitMetric",
+                                         helpLink("alHitMetric", "Threshold on",
+                                                  "Hit threshold metric", helpTextServer[["alHitMetric"]]),
+                                         choices = list("z-score" = "zscore",
+                                                        "Raw measurement" = "raw",
+                                                        "NPI" = "npi"),
+                                         selected = "zscore")
+                           ),
+
+                           column(
+                             width = 8,
+                             sliderInput("slHitsThr",
+                                         hitMetrics[["zscore"]][["label"]],
+                                         min = hitMetrics[["zscore"]][["min"]],
+                                         max = hitMetrics[["zscore"]][["max"]],
+                                         value = hitMetrics[["zscore"]][["value"]],
+                                         step = hitMetrics[["zscore"]][["step"]])
+                           )
+                         ),
 
                          hr(),
                          h4(helpLink("alHitPerf",

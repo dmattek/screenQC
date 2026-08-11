@@ -325,6 +325,7 @@ server <- function(input, output, session) {
     return(calcHits(dataPlate(),
                     inRobust = input$chBrobust,
                     inScreenType = input$rBscreenType,
+                    inMetric = input$selHitMetric,
                     inThr = input$slHitsThr))
   })
 
@@ -408,6 +409,42 @@ server <- function(input, output, session) {
   width = "100%")
   
   
+  # Re-scale the hit threshold when the metric changes ----
+  # The three quantities live on entirely different scales, so the slider is
+  # rebuilt from the hitMetrics entry rather than keeping a stale range.
+  observeEvent(input$selHitMetric, {
+    locCfg = hitMetrics[[input$selHitMetric]]
+
+    updateSliderInput(session,
+                      "slHitsThr",
+                      label = locCfg[["label"]],
+                      min = locCfg[["min"]],
+                      max = locCfg[["max"]],
+                      value = locCfg[["value"]],
+                      step = locCfg[["step"]])
+  })
+
+  # Keep the #hits slider within the wells actually available ----
+  # Control wells eat into the sample wells, so on a 96-well plate with both
+  # control counts at their maximum only 32 sample wells remain. dataSamples()
+  # clamps regardless; this stops the slider offering the impossible values.
+  observeEvent(
+    {
+      input$selPlateFormat
+      input$slCtrlNegN
+      input$slCtrlPosN
+    },
+    {
+      locMax = as.integer(input$selPlateFormat) -
+        as.integer(input$slCtrlNegN) -
+        as.integer(input$slCtrlPosN)
+
+      updateSliderInput(session,
+                        "slHitsN",
+                        max = locMax,
+                        value = min(isolate(input$slHitsN), locMax))
+    })
+
   # Pop-overs ----
   # The help pop-overs are carried by the helpLink() labels in ui.R and bound
   # client-side, so that clicking a label opens its help and clicking the

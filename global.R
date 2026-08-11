@@ -69,6 +69,17 @@ helpTextServer = list(
   genuine hits stop clearing the threshold and sensitivity falls away. This
   can happen while Z-prime still reads as excellent, and it is why real
   screens normalise spatially instead of trusting a single quality index.</p>",
+  alHitMetric = "<p>Which quantity the hit threshold is applied to.</p>
+  <p><i>Raw measurement</i> uses the well value as it stands, <i>z-score</i>
+  standardises it against the spread of the sample wells, and <i>NPI</i>
+  rescales it between the two controls.</p>
+  <p>Mind the direction. An active well has a <b>low</b> raw value and a
+  <b>low</b> z-score in an antagonist screen, but a <b>high</b> NPI, because
+  NPI is anchored at 0 for an inactive well and 100 for a fully affected one.
+  The comparison flips accordingly, so an NPI threshold selects wells above
+  it while the other two select wells below.</p>
+  <p>The three sit on different scales, so the slider is re-ranged when the
+  metric changes.</p>",
   alHitPerf = "<p>The wells spiked with the &quot;hit&quot; distribution are
   known, so the wells called by the z-score threshold can be scored against
   them. Only sample wells are counted; the controls are excluded.</p>
@@ -522,7 +533,33 @@ calcNPI = function(inDT,
 
 ## Hit selection ----
 
-calcHits = function(inDT, 
+# The quantities a hit threshold can be applied to, with the slider setup
+# each one needs. Single source of truth for ui.R and server.R.
+hitMetrics = list(
+  zscore = list(name = "z-score",
+                col = "zScore",
+                label = "z-score threshold",
+                min = -6, max = 6, value = -3, step = 0.1),
+
+  raw = list(name = "Raw measurement",
+             col = "meas",
+             label = "Raw measurement threshold",
+             min = -6, max = 10, value = 1, step = 0.1),
+
+  npi = list(name = "NPI",
+             col = "NPI",
+             label = "NPI threshold",
+             min = -50, max = 150, value = 50, step = 1)
+)
+
+# Flag wells whose inMetric value falls beyond inThr.
+#
+# Direction: an active well has a low measurement in an inhibition screen and
+# a high one in an activation screen, so raw and z-score are compared in that
+# direction. NPI is scaled against the controls and runs the opposite way in
+# BOTH screen types -- an inhibition hit sits near 100 and an activation hit
+# near 0 -- so its comparison is flipped.
+calcHits = function(inDT,
                     inColMeas = "meas",
                     inColType = "type",
                     inWellType = list(ctrlNeg = "Ctrl Neg",
@@ -530,36 +567,54 @@ calcHits = function(inDT,
                                       sample = "Sample"),
                     inScreenType = c("inhibition",
                                      "activation"),
+                    inMetric = c("zscore",
+                                 "raw",
+                                 "npi"),
                     inThr = -3,
                     inRobust = F) {
 
   inScreenType = match.arg(inScreenType)
+  inMetric = match.arg(inMetric)
 
   # Work on a copy; the caller's data.table must not gain columns
   inDT = copy(inDT)
 
-  if(inRobust) {
-    locDTaggr = inDT[get(inColType) == inWellType[["sample"]],
-                     .(wellMn = median(get(inColMeas)),
-                       wellSd = mad(get(inColMeas)))]
+  # Add whichever column the threshold is applied to
+  if (inMetric == "zscore") {
+    inDT = calcZscore(inDT,
+                      inColMeas = inColMeas,
+                      inColType = inColType,
+                      inWellType = inWellType,
+                      inRobust = inRobust)
+    locCol = "zScore"
+
+  } else if (inMetric == "npi") {
+    inDT = calcNPI(inDT,
+                   inColMeas = inColMeas,
+                   inColType = inColType,
+                   inWellType = inWellType,
+                   inScreenType = inScreenType,
+                   inRobust = inRobust)
+    locCol = "NPI"
+
   } else {
-    locDTaggr = inDT[get(inColType) == inWellType[["sample"]],
-                     .(wellMn = mean(get(inColMeas)),
-                       wellSd = sd(get(inColMeas)))]
-  }
-  
-  inDT[,
-       zScore := (get(inColMeas) - locDTaggr[["wellMn"]]) / locDTaggr[["wellSd"]]]
-  
-  if (inScreenType == "inhibition") {
-    inDT[,
-         hits := zScore < inThr]
-  } else {
-    inDT[,
-         hits := zScore > inThr]
+    locCol = inColMeas
   }
 
-  return(inDT)
+  locBelow = (inScreenType == "inhibition")
+
+  if (inMetric == "npi")
+    locBelow = !locBelow
+
+  if (locBelow) {
+    inDT[,
+         hits := get(locCol) < inThr]
+  } else {
+    inDT[,
+         hits := get(locCol) > inThr]
+  }
+
+  return(inDT[])
 }
 
 # Compare called hits against the wells that were actually spiked, and
@@ -695,11 +750,20 @@ plotPlateHM = function(inDT,
                    showlegend = TRUE,
                    inherit = FALSE)
 
-  # Horizontal legend below the plate, clear of the colourbar
+  # Adding the scatter trace makes plotly derive the category order of both
+  # axes from that trace alone and sort it as strings, which scrambles the
+  # columns (10, 11, 12, 5, 6, ...) and undoes the row reversal that puts
+  # row A at the top. Pin both axes back to the heatmap's own ordering.
   locP = layout(locP,
                 legend = list(orientation = "h",
                               x = 0,
-                              y = -0.15))
+                              y = -0.15),
+                xaxis = list(type = "category",
+                             categoryorder = "array",
+                             categoryarray = as.character(locCol)),
+                yaxis = list(type = "category",
+                             categoryorder = "array",
+                             categoryarray = as.character(locRow)))
 
   return(locP)
 }
