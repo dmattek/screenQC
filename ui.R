@@ -18,6 +18,8 @@ myBody = dashboardBody(
   tabItems(
     # First tab content
     tabItem(tabName = "dashboard",
+            helpLinkScript,
+
             fluidRow(
               box(width = 12,
                   title = "Configuration",
@@ -25,7 +27,8 @@ myBody = dashboardBody(
                     column(
                       width = 3,
                       selectInput("selPlateFormat",
-                                  actionLink("alPlateFormat", "Plate format"),
+                                  helpLink("alPlateFormat", "Plate format",
+                                           "Plate format", helpTextServer[["alPlateFormat"]]),
                                   choices = list("96" = 96,
                                                  "384" = 384,
                                                  "1536" = 1536),
@@ -35,7 +38,8 @@ myBody = dashboardBody(
                     column(
                       width = 3,
                       selectInput("selSSMDctrl",
-                                  actionLink("alSSMDcrit", "SSMD control"),
+                                  helpLink("alSSMDcrit", "SSMD control",
+                                           "SSMD criteria", helpTextServer[["alSSMDcrit"]]),
                                   choices = list("Moderate" = "moderate",
                                                  "Strong" = "strong",
                                                  "Very strong" = "verystrong",
@@ -73,7 +77,8 @@ myBody = dashboardBody(
                     column(
                       width = 3,
                       numericInput("nISeed",
-                                   actionLink("alSeed", "Random seed"),
+                                   helpLink("alSeed", "Random seed",
+                                            "Random seed", helpTextServer[["nISeed"]]),
                                    value = 1,
                                    min = 1,
                                    max = 9999,
@@ -144,8 +149,10 @@ myBody = dashboardBody(
                                      value = -3),
 
                          hr(),
-                         h4(actionLink("alHitPerf",
-                                       "Called hits vs. spiked wells")),
+                         h4(helpLink("alHitPerf",
+                                     "Called hits vs. spiked wells",
+                                     "Scoring called hits",
+                                     helpTextServer[["alHitPerf"]])),
 
                          fluidRow(
                            column(width = 6,

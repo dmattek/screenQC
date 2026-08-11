@@ -95,6 +95,57 @@ helpTextServer = list(
   <p>Learn more <a href=\"https://en.wikipedia.org/wiki/Z-factor#Definition\" target=\"_blank\">here</a>.</p>"
 )
 
+## Help pop-overs ----
+
+# A label that carries its own Bootstrap popover, opened by clicking the
+# label text and nothing else.
+#
+# shinyBS::addPopover cannot express that. Its JS resolves the target with
+#   $("#id").closest(".shiny-input-container, .shiny-bound-output, .btn, ...")
+# so a link used as an input label binds the popover to the whole control --
+# clicking the dropdown to change a value pops the help open -- while a link
+# outside any input container matches nothing and the popover silently never
+# attaches at all. Binding straight to the element avoids both.
+helpLink = function(inId,
+                    inLabel,
+                    inTitle,
+                    inContent) {
+
+  return(
+    actionLink(inId,
+               inLabel,
+               # data-original-title rather than title, so the browser never
+               # shows a native tooltip on hover before Bootstrap initialises
+               `data-original-title` = inTitle,
+               `data-toggle` = "popover",
+               `data-trigger` = "click",
+               `data-placement` = "bottom",
+               `data-container` = "body",
+               `data-html` = "true",
+               `data-content` = inContent)
+  )
+}
+
+# Initialises every helpLink() on the page, and closes an open popover when
+# the next click lands outside it. Include once in the body.
+helpLinkScript = tags$script(HTML("
+$(function() {
+  $('[data-toggle=\"popover\"]').popover();
+
+  $(document).on('click', function(e) {
+    $('[data-toggle=\"popover\"]').each(function() {
+      var $t = $(this);
+      if (!$t.is(e.target) &&
+          $t.has(e.target).length === 0 &&
+          $('.popover').has(e.target).length === 0) {
+        $t.popover('hide');
+      }
+    });
+  });
+});
+"))
+
+
 ## Plate quality ----
 
 calcZfactor = function(inDT, 

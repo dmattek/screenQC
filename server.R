@@ -391,30 +391,10 @@ server <- function(input, output, session) {
   
   
   # Pop-overs ----
-  addPopover(session,
-             "alPlateFormat",
-             title = "Plate format",
-             content = helpTextServer[["alPlateFormat"]],
-             trigger = "click")
-  
-  addPopover(session,
-             "alSSMDcrit",
-             title = "SSMD criteria",
-             content = helpTextServer[["alSSMDcrit"]],
-             trigger = "click")
+  # The help pop-overs are carried by the helpLink() labels in ui.R and bound
+  # client-side, so that clicking a label opens its help and clicking the
+  # input next to it does not. See the note on helpLink() in global.R.
 
-  addPopover(session,
-             "alSeed",
-             title = "Random seed",
-             content = helpTextServer[["nISeed"]],
-             trigger = "click")
-
-  addPopover(session,
-             "alHitPerf",
-             title = "Scoring called hits",
-             content = helpTextServer[["alHitPerf"]],
-             trigger = "click")
-  
   observeEvent(input$button_vBzprime, {
     toggleModal(session, "modal_vBzprime", "open")
   })
