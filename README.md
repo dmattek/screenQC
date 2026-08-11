@@ -10,6 +10,8 @@ The app illustrates quantitative concepts of [high-content screening](https://en
 
 The app generates synthetic data for a desired plate format (e.g. 96, 384, 1536-well). The data includes measurement samples, and negative and positive controls. The user can change the number of control wells, their sample mean and standard deviation. Additionally, "hits" with the mean and standard deviation corresponding to the positive control can be added to the dataset.
 
+Plates can also be given systematic spatial artifacts: row and column gradients, and an edge effect that shifts the outer frame of wells and decays inwards. These apply to every well, controls included, and the control wells themselves can be placed in the first columns, on the edge columns, or interleaved across the plate. Together they show why a single quality index is not enough: an artifact inflates the spread of the sample wells, so genuine hits stop clearing the z-score threshold and sensitivity falls away, and this can happen while Z-prime still reads as excellent, because Z-prime is a difference of two control means and cancels any bias the two controls share equally.
+
 Data generation is reproducible: a given random seed and a given set of parameters always produce the same plate. Changing a parameter re-uses the same random noise, so that the resulting change in the quality indices is the effect of that parameter alone. The *Resample* button draws a new plate from unchanged parameters, which shows how much the indices vary between runs.
 
 Synthetic data can be plotted as distributions, box-plots or heatmaps with raw or normalized data. Normalisations include the [z-score](https://en.wikipedia.org/wiki/Standard_score) and Normalised Percentage Inhibition.

@@ -45,6 +45,30 @@ helpTextServer = list(
   in the quality indices comes from that parameter alone.</p>",
   abResample = "Draw a new random plate from the same parameters.
   Use it to see how much the quality indices vary between runs.",
+  alCtrlLayout = "<p>Where the control wells sit on the plate.</p>
+  <p><i>First columns</i> fills the plate from column 1, <i>edge columns</i>
+  puts the controls on the outer columns, and <i>interleaved</i> spreads them
+  evenly.</p>
+  <p>The layout only matters once a plate artifact is switched on, and what
+  it decides is how <i>evenly</i> the artifact hits the controls. Z-prime is
+  built from the difference between the two control means, so a bias shared
+  equally by both cancels out of it: controls sitting at one uniform depth
+  can be badly offset and Z-prime will not notice. Spread the controls over
+  wells the artifact treats differently and Z-prime drops sharply.</p>
+  <p>So a healthy Z-prime is not by itself evidence of a clean plate. Turn on
+  an edge effect and compare the layouts against the hit scoring below the
+  Hits heatmap.</p>",
+  alArtifacts = "<p>Systematic spatial effects added on top of the random
+  well-to-well noise, in measurement units.</p>
+  <p>The two <i>gradients</i> ramp linearly across the rows and the columns,
+  the slider being the total change from one side of the plate to the other.
+  The <i>edge effect</i> shifts the outermost frame of wells and decays
+  inwards.</p>
+  <p>Artifacts apply to every well, controls included. They inflate the
+  spread of the sample wells, which is the denominator of the z-score, so
+  genuine hits stop clearing the threshold and sensitivity falls away. This
+  can happen while Z-prime still reads as excellent, and it is why real
+  screens normalise spatially instead of trusting a single quality index.</p>",
   alHitPerf = "<p>The wells spiked with the &quot;hit&quot; distribution are
   known, so the wells called by the z-score threshold can be scored against
   them. Only sample wells are counted; the controls are excluded.</p>
@@ -144,6 +168,160 @@ $(function() {
   });
 });
 "))
+
+
+## Plate geometry and layout ----
+
+plateDims = function(inFormat) {
+  return(
+    switch(as.character(inFormat),
+           "96"   = list(nRow = 8,  nCol = 12),
+           "384"  = list(nRow = 16, nCol = 24),
+           "1536" = list(nRow = 32, nCol = 48))
+  )
+}
+
+# Plate rows are lettered A..Z and then AA, AB, ... , which for the 32 rows
+# of a 1536-well plate means A..Z followed by AA..AF
+plateRowLabels = function(inNrow) {
+  return(c(LETTERS,
+           paste0("A", LETTERS))[seq_len(inNrow)])
+}
+
+# Grid positions handed to the control wells, in preference order.
+# Positions are numbered column-major, i.e. (col - 1) * nRow + row.
+#
+#   first  - fill the plate from the first column on (the original layout)
+#   edge   - the outermost columns, working inwards
+#   spread - spaced evenly over the whole plate
+#
+# Every branch returns a full ordering rather than just the first inNctrl
+# positions, so that a control count larger than the preferred region still
+# has somewhere to go: with both control sliders at their maximum the edge
+# columns of a 96-well plate cannot hold them all.
+ctrlPositions = function(inNrow,
+                         inNcol,
+                         inNctrl,
+                         inLayout = c("first", "edge", "spread")) {
+
+  inLayout = match.arg(inLayout)
+
+  locN = inNrow * inNcol
+  locAll = seq_len(locN)
+
+  if (inNctrl < 1L)
+    return(integer(0))
+
+  locPos = switch(
+    inLayout,
+
+    "first" = locAll,
+
+    "edge" = {
+      # columns ordered 1, nCol, 2, nCol-1, ...
+      locHalf = inNcol %/% 2L
+      locOrder = as.vector(rbind(seq_len(locHalf),
+                                 rev(seq_len(inNcol))[seq_len(locHalf)]))
+      if (inNcol %% 2L == 1L)
+        locOrder = c(locOrder, locHalf + 1L)
+
+      as.vector(vapply(locOrder,
+                       function(inC) (inC - 1L) * inNrow + seq_len(inNrow),
+                       numeric(inNrow)))
+    },
+
+    "spread" = {
+      locSeq = unique(round(seq(from = 1,
+                                to = locN,
+                                length.out = inNctrl)))
+      c(locSeq, setdiff(locAll, locSeq))
+    })
+
+  return(as.integer(locPos[seq_len(inNctrl)]))
+}
+
+# Place the wells of inDT on the plate grid and label them.
+# Rows of inDT are expected in the order they are generated: controls first,
+# then samples. The result is sorted column-major by position, which is the
+# order plotPlateHM() reshapes into a matrix.
+assignPlatePositions = function(inDT,
+                                inNrow,
+                                inNcol,
+                                inLayout = "first",
+                                inColType = "type",
+                                inWellType = list(ctrlNeg = "Ctrl Neg",
+                                                  ctrlPos = "Ctrl Pos",
+                                                  sample = "Sample")) {
+
+  inDT = copy(inDT)
+
+  locN = inNrow * inNcol
+  stopifnot(nrow(inDT) == locN)
+
+  locIsCtrl = inDT[[inColType]] != inWellType[["sample"]]
+
+  locCtrlPos = ctrlPositions(inNrow,
+                             inNcol,
+                             sum(locIsCtrl),
+                             inLayout)
+  locSamplePos = setdiff(seq_len(locN), locCtrlPos)
+
+  locPos = integer(locN)
+  locPos[locIsCtrl] = locCtrlPos
+  locPos[!locIsCtrl] = locSamplePos
+
+  inDT[, `:=`(rowIdx = ((locPos - 1L) %% inNrow) + 1L,
+              colIdx = ((locPos - 1L) %/% inNrow) + 1L)]
+
+  inDT[, `:=`(row = plateRowLabels(inNrow)[rowIdx],
+              col = factor(colIdx, levels = seq_len(inNcol)))]
+
+  setorder(inDT, colIdx, rowIdx)
+
+  return(inDT[])
+}
+
+
+## Plate artifacts ----
+
+# Systematic spatial effects laid on top of the well measurements.
+#
+# Applied to every well, controls included: an edge effect that biases the
+# border is precisely what wrecks Z-prime once the controls sit there, which
+# is the point of being able to move them.
+addPlateArtifacts = function(inDT,
+                             inNrow,
+                             inNcol,
+                             inColMeas = "meas",
+                             inGradRow = 0,
+                             inGradCol = 0,
+                             inEdge = 0,
+                             inEdgeDecay = 1.5) {
+
+  inDT = copy(inDT)
+
+  # Gradients span the plate, so a slider value is the total change from
+  # one side to the other rather than a per-well step
+  locGrad = numeric(nrow(inDT))
+
+  if (inNrow > 1L)
+    locGrad = locGrad + inGradRow * (inDT[["rowIdx"]] - 1L) / (inNrow - 1L)
+
+  if (inNcol > 1L)
+    locGrad = locGrad + inGradCol * (inDT[["colIdx"]] - 1L) / (inNcol - 1L)
+
+  # Ring 1 is the outermost frame of wells; the effect decays inwards
+  locRing = pmin(inDT[["rowIdx"]],
+                 inNrow - inDT[["rowIdx"]] + 1L,
+                 inDT[["colIdx"]],
+                 inNcol - inDT[["colIdx"]] + 1L)
+
+  locEdge = inEdge * exp(-(locRing - 1L) / inEdgeDecay)
+
+  inDT[, (inColMeas) := get(inColMeas) + locGrad + locEdge]
+
+  return(inDT[])
+}
 
 
 ## Plate quality ----

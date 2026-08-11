@@ -97,6 +97,17 @@ myBody = dashboardBody(
                                 placement = "top",
                                 trigger = "hover",
                                 options = NULL)
+                    ),
+
+                    column(
+                      width = 3,
+                      selectInput("selCtrlLayout",
+                                  helpLink("alCtrlLayout", "Control layout",
+                                           "Control layout", helpTextServer[["alCtrlLayout"]]),
+                                  choices = list("First columns" = "first",
+                                                 "Edge columns" = "edge",
+                                                 "Interleaved" = "spread"),
+                                  selected = "first")
                     )
                   )
               ),
@@ -127,7 +138,31 @@ myBody = dashboardBody(
                 sliderInput("slHitsN", "#hits:", min = 0, max = 36, value = 0, step = 1)
               )
             ),
-            
+
+            fluidRow(
+              box(
+                width = 12,
+                title = helpLink("alArtifacts", "Plate artifacts",
+                                 "Plate artifacts", helpTextServer[["alArtifacts"]]),
+                column(
+                  width = 4,
+                  sliderInput("slGradRow", "Row gradient:",
+                              min = -1, max = 1, value = 0, step = 0.05)
+                ),
+                column(
+                  width = 4,
+                  sliderInput("slGradCol", "Column gradient:",
+                              min = -1, max = 1, value = 0, step = 0.05)
+                ),
+                column(
+                  width = 4,
+                  sliderInput("slEdge", "Edge effect:",
+                              min = -1, max = 1, value = 0, step = 0.05)
+                )
+              )
+            ),
+
+
             fluidRow(
               tabBox(
                 width = 8,

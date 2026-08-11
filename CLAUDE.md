@@ -31,12 +31,15 @@ Classic three-file Shiny layout, auto-sourced by Shiny in the order `global.R` �
 
 ```
 seedBase() ─> dataCtrlNeg()  ─┐
-           ─> dataCtrlPos()  ─┼─ rbind ─> dataMain() ─> dataPlotHM() ─> raw/zScore/NPI heatmaps
-           ─> dataSamples()  ─┘              │              │
-                                             │              └─> dataHits() ─> hits heatmap
-                                             │                          └─> confusion + rate tables
-                                             └─> valueBoxes (Z-prime, SSMD), density & box plots
+           ─> dataCtrlPos()  ─┼─ rbind ─> dataMain() ─> dataPlate() ─> raw/zScore/NPI heatmaps
+           ─> dataSamples()  ─┘                             │
+                                                            ├─> dataHits() ─> hits heatmap
+                                                            │            └─> confusion + rate tables
+                                                            └─> valueBoxes (Z-prime, SSMD),
+                                                                density & box plots
 ```
+
+`dataPlate()` is the plate every consumer works from: it takes the stacked draws, positions the wells via `assignPlatePositions()` according to the chosen control layout, applies `addPlateArtifacts()`, then rounds. **Positioning lives here, not further downstream, on purpose** — the artifacts are position-dependent and have to reach the quality indices and distribution plots, not only the heatmaps. Anything that adds a position-dependent effect belongs in this reactive.
 
 `dataMain()` is a three-column `data.table` (`type`, `meas`, `spiked`). Samples are drawn with the **negative control's** mean/sd; "hits" then overwrite `slHitsN` randomly chosen sample rows with the hit mean/sd and set `spiked = TRUE`. Sample count is `plateFormat - nCtrlPos - nCtrlNeg`, so control well counts eat into the sample wells — and on a 96-well plate with both control counts maxed there are fewer sample wells than the `#hits` slider allows, hence the `min()` clamp in `dataSamples()`.
 
@@ -44,7 +47,23 @@ seedBase() ─> dataCtrlNeg()  ─┐
 
 **Seeding.** `seedBase()` returns `10 * (input$nISeed + input$abResample)`, and each of the three draws calls `set.seed(seedBase() + k)` with its own `k`. Consequences worth knowing before touching it: the app is deterministic given (seed, parameters); clicking Resample bumps the base, yielding a fresh plate; and because `rnorm(n, m, s)` is `m + s*z` off a fixed `z` stream, changing a mean or SD slider *preserves the noise pattern* and shows only that parameter's effect. The `* 10` keeps the per-draw offsets from colliding with a neighbouring click's base — don't drop it, and keep `k` below 10. Note `set.seed()` sets global RNG state; all randomness in the app lives in these three reactives.
 
-`dataPlotHM()` `cbind`s a plate grid (`expand.grid` over row letters × column numbers, per 96/384/1536 format) onto `dataMain()` in row order. Because controls are `rbind`ed first, they always land in the first grid positions — the layout is positional, not label-driven.
+**Artifacts and layout — the non-obvious behaviour.** `addPlateArtifacts()` adds row/column gradients and an edge effect (ring 1 is the outer frame, decaying inwards) to *every* well, controls included. `ctrlPositions()` decides where controls sit: `first`, `edge`, or `spread`, each returning a full position ordering so an oversized control count spills over rather than failing — the edge columns of a 96-well plate cannot hold 64 controls.
+
+What matters when reasoning about this: **Z-prime is a difference of two control means, so a bias shared equally by both controls cancels out of it entirely.** Controls at a uniform ring depth can be badly offset with Z-prime not moving at all; degradation tracks how many *distinct* rings the controls span. Measured on a 384 plate with 64 controls and `edge = 0.5`: `edge` layout spans rings {1,2} and loses 0.02, `first` spans {1,2,3,4} and loses 0.25, `spread` spans {1..8} and loses 0.57. The same trap applies per-axis — with `first` stacking controls down column 1, a *column* gradient cancels while a *row* gradient (negative control in rows 1-8, positive in 9-16) drives Z-prime from 0.52 to -0.22.
+
+Meanwhile the artifact still inflates the sample spread, which is the z-score denominator, so hits stop clearing the threshold: at `edge = 0.5` with `first` layout, Z-prime holds at 0.515 while sensitivity drops from 92% to 38%. Don't "fix" a test that shows a flat Z-prime under an artifact — that is the app being correct, and it's the lesson the panel exists to teach.
+
+`assignPlatePositions()` `setorder`s the result column-major (`colIdx`, `rowIdx`), which is the order `plotPlateHM()` reshapes into a matrix. Breaking that ordering silently scrambles every heatmap.
+
+Row labels come from `plateRowLabels()`: `A`–`Z` then `AA`–`AF`, so a 1536-well plate's 32 rows end at `AF`. Note `LETTERS` only holds 26 entries — `LETTERS[1:32]` silently yields six `NA`s, which is an easy way to corrupt a 1536 plate or a test fixture.
+
+### Help pop-overs
+
+Use `helpLink(id, label, title, content)` from `global.R` for a clickable help label, with `helpLinkScript` included once in the body. It emits Bootstrap `data-*` attributes on the link itself.
+
+**Do not go back to `shinyBS::addPopover` for these.** Its JS resolves the target as `$("#id").closest(".shiny-input-container, .shiny-bound-output, .btn, ...")`, which has two failure modes seen in this app: a link used as an input label binds the popover to the *whole control*, so clicking a dropdown to change its value pops the help open; and a link outside any input container (a `box(title = )`, an `h4()` in a `tabPanel`) matches nothing, so the popover silently never attaches — `alArtifacts` and `alHitPerf` were dead this way. `bsTooltip` shares the same target resolution, which is why it stays on plain inputs (`rBscreenType`, `chBrobust`, `abResample`) where binding to the whole control is what you want.
+
+Pass the title via `data-original-title`, not `title`, or the browser shows a native tooltip on hover before Bootstrap initialises.
 
 ### Conventions that cut across files
 

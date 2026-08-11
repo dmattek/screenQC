@@ -91,70 +91,54 @@ server <- function(input, output, session) {
 
   })
   
+  # The three draws stacked, before the wells are placed on the plate
   dataMain = reactive({
     cat("server:dataMain\n")
-    
-    locDT = rbind(
-      dataCtrlNeg(),
-      dataCtrlPos(),
-      dataSamples())
-    # 
-    # locDT[,
-    #       type := factor(type, 
-    #                      levels = c("Ctrl Neg",
-    #                                 "Ctrl Pos",
-    #                                 "Sample"))]
+
+    return(
+      rbind(
+        dataCtrlNeg(),
+        dataCtrlPos(),
+        dataSamples())
+    )
+  })
+
+  # The plate every consumer works from: wells positioned according to the
+  # chosen control layout, then the spatial artifacts laid on top.
+  #
+  # Positioning has to happen here rather than further downstream, because
+  # the artifacts are position-dependent and have to reach the quality
+  # indices and the distribution plots, not just the heatmaps.
+  dataPlate = reactive({
+    cat("server:dataPlate\n")
+
+    locDims = plateDims(input$selPlateFormat)
+
+    locDT = assignPlatePositions(dataMain(),
+                                 inNrow = locDims[["nRow"]],
+                                 inNcol = locDims[["nCol"]],
+                                 inLayout = input$selCtrlLayout)
+
+    locDT = addPlateArtifacts(locDT,
+                              inNrow = locDims[["nRow"]],
+                              inNcol = locDims[["nCol"]],
+                              inGradRow = input$slGradRow,
+                              inGradCol = input$slGradCol,
+                              inEdge = input$slEdge)
+
     locDT[,
-          meas := signif(meas, 4)]    
-    
+          meas := signif(meas, 4)]
+
     return(locDT)
   })
   
-  # Prepare data in long format for plotting with ggplot;
-  # add row and column numbers depending on plate format.
-  dataPlotHM = reactive({
-    cat("server:dataPlotHM\n")
-    
-    locDT = dataMain()
-    
-    switch(input$selPlateFormat,
-           "96" = {
-             locX = 12
-             locY = 8
-             locGrid = expand.grid(LETTERS[1:locY],
-                                   seq_len(locX))},
-           "384" = {
-             locX = 24
-             locY = 16
-             locGrid = expand.grid(LETTERS[1:locY],
-                                   seq_len(locX))
-           },
-           "1536" = {
-             locX = 48
-             locY = 32
-             locGrid = expand.grid(t(outer(LETTERS, LETTERS, FUN = paste0))[1:locY],
-                                   seq_len(locX))
-           })
-    
-    
-    
-    locDT = cbind(locDT,
-                  locGrid)
-    
-    setnames(locDT, 
-             c("Var1", "Var2"),
-             c("row", "col"))
-    
-    locDT[,
-          col := as.factor(col)]
-  })
-  
+
   output$vBzfactor = renderValueBox({
     cat("server:vBzfactor\n")
     
     valueBox(
       value = sprintf("%.2f", 
-                      calcZfactor(dataMain(),
+                      calcZfactor(dataPlate(),
                                   inRobust = input$chBrobust,
                                   inScreenType = input$rBscreenType)), 
       subtitle = "Z-Factor", 
@@ -165,7 +149,7 @@ server <- function(input, output, session) {
   output$vBzprime = renderValueBox({
     cat("server:vBzprime\n")
     
-    locZp = calcZprime(dataMain(),
+    locZp = calcZprime(dataPlate(),
                        inRobust = input$chBrobust)
 
     # NaN when both controls have zero spread and identical means;
@@ -200,7 +184,7 @@ server <- function(input, output, session) {
   output$vBssmd = renderValueBox({
     cat("server:vBssmd\n")
     
-    locSsmd = calcSSMD(dataMain(),
+    locSsmd = calcSSMD(dataPlate(),
                        inRobust = input$chBrobust,
                        inScreenType = input$rBscreenType)
     
@@ -246,7 +230,7 @@ server <- function(input, output, session) {
   output$plotDist = renderPlot({
     cat("server:plotDist\n")
     
-    ggplot(data = dataMain(),
+    ggplot(data = dataPlate(),
            aes(x = meas,
                y = ..density..)) +
       geom_density(aes(fill = type), 
@@ -261,7 +245,7 @@ server <- function(input, output, session) {
   output$plotBox = renderPlot({
     cat("server:plotBox\n")
     
-    ggplot(data = dataMain(),
+    ggplot(data = dataPlate(),
            aes(x = type,
                y = meas)) +
       geom_boxplot(aes(fill = type), 
@@ -276,7 +260,7 @@ server <- function(input, output, session) {
   output$plotlyHMraw = renderPlotly({
     cat("server:plotlyHMraw\n")
 
-    plotPlateHM(dataPlotHM(),
+    plotPlateHM(dataPlate(),
                 inColVal = "meas",
                 inHoverLabel = "Meas")
   })
@@ -284,7 +268,7 @@ server <- function(input, output, session) {
   output$plotlyHMzscore = renderPlotly({
     cat("server:plotlyHMzscore\n")
 
-    locDT = calcZscore(dataPlotHM(),
+    locDT = calcZscore(dataPlate(),
                        inRobust = input$chBrobust)
 
     plotPlateHM(locDT,
@@ -295,7 +279,7 @@ server <- function(input, output, session) {
   output$plotlyHMnpi = renderPlotly({
     cat("server:plotlyHMnpi\n")
 
-    locDT = calcNPI(dataPlotHM(),
+    locDT = calcNPI(dataPlate(),
                     inRobust = input$chBrobust,
                     inScreenType = input$rBscreenType)
 
@@ -308,7 +292,7 @@ server <- function(input, output, session) {
   dataHits = reactive({
     cat("server:dataHits\n")
 
-    return(calcHits(dataPlotHM(),
+    return(calcHits(dataPlate(),
                     inRobust = input$chBrobust,
                     inScreenType = input$rBscreenType,
                     inThr = input$slHitsThr))
