@@ -6,54 +6,89 @@
 #
 
 server <- function(input, output, session) {
-  
+
+  # Base of the random seed used by the three draws below.
+  #
+  # Clicking Resample advances input$abResample by one, which yields a fresh
+  # plate from unchanged parameters. Holding it fixed makes the app
+  # deterministic: dragging a slider then re-uses the same underlying noise,
+  # so the change in the quality indices is the effect of that slider alone.
+  #
+  # Scaled by 10 so that the per-draw offsets added below never collide with
+  # the base of a neighbouring click.
+  seedBase = reactive({
+    cat("server:seedBase\n")
+
+    # The numeric input is empty (NA) while being edited
+    locSeed = suppressWarnings(as.integer(input$nISeed))
+    if (length(locSeed) == 0L || is.na(locSeed))
+      locSeed = 1L
+
+    return(10L * (locSeed + as.integer(input$abResample)))
+  })
+
   dataCtrlNeg = reactive({
     cat("server:dataCtrlNeg\n")
-    
+
+    set.seed(seedBase() + 1L)
+
     return(
       data.table(type = rep("Ctrl Neg", input$slCtrlNegN),
                  meas = rnorm(n = input$slCtrlNegN,
                               mean = input$slCtrlNegMn,
-                              sd = input$slCtrlNegSd))
+                              sd = input$slCtrlNegSd),
+                 spiked = FALSE)
     )
   })
-  
+
   dataCtrlPos = reactive({
     cat("server:dataCtrlPos\n")
-    
+
+    set.seed(seedBase() + 2L)
+
     return(
       data.table(type = rep("Ctrl Pos", input$slCtrlPosN),
                  meas = rnorm(n = input$slCtrlPosN,
                               mean = input$slCtrlPosMn,
-                              sd = input$slCtrlPosSd))
+                              sd = input$slCtrlPosSd),
+                 spiked = FALSE)
     )
   })
-  
+
   dataSamples = reactive({
     cat("server:dataSamples\n")
-    
-    locNwells = as.integer(input$selPlateFormat) - 
-      as.integer(input$slCtrlPosN) - 
+
+    set.seed(seedBase() + 3L)
+
+    locNwells = as.integer(input$selPlateFormat) -
+      as.integer(input$slCtrlPosN) -
       as.integer(input$slCtrlNegN)
-    
+
     # Random dt with samples
     # The same mean & sd as negative control
+    # spiked records the ground truth used to score the called hits
     locDT = data.table(type = rep("Sample", locNwells),
                        meas = rnorm(n = locNwells,
                                     mean = input$slCtrlNegMn,
-                                    sd = input$slCtrlNegSd))
-    
+                                    sd = input$slCtrlNegSd),
+                       spiked = FALSE)
+
     # Add "hits"
-    if (input$slHitsN > 0 ) {
-      locHits = sample(nrow(locDT), input$slHitsN)
+    # A 96-well plate with both control counts at their maximum leaves fewer
+    # sample wells than the #hits slider allows, hence the clamp
+    locNhits = min(input$slHitsN, nrow(locDT))
+
+    if (locNhits > 0 ) {
+      locHits = sample(nrow(locDT), locNhits)
       locDT[locHits,
             `:=`(meas = rnorm(n = length(locHits),
                               mean = input$slHitsMn,
-                              sd = input$slHitsSd))]
+                              sd = input$slHitsSd),
+                 spiked = TRUE)]
     }
-    
+
     return(locDT)
-    
+
   })
   
   dataMain = reactive({
@@ -269,13 +304,20 @@ server <- function(input, output, session) {
                 inHoverLabel = "NPI")
   })
 
+  # Called hits, shared by the heatmap and the scoring tables below
+  dataHits = reactive({
+    cat("server:dataHits\n")
+
+    return(calcHits(dataPlotHM(),
+                    inRobust = input$chBrobust,
+                    inScreenType = input$rBscreenType,
+                    inThr = input$slHitsThr))
+  })
+
   output$plotlyHMhits = renderPlotly({
     cat("server:plotlyHMhits\n")
 
-    locDT = calcHits(dataPlotHM(),
-                     inRobust = input$chBrobust,
-                     inScreenType = input$rBscreenType,
-                     inThr = input$slHitsThr)
+    locDT = dataHits()
 
     # Two-colour discrete scale for the logical hit column
     # From: https://stackoverflow.com/a/49944091/1898713
@@ -285,14 +327,67 @@ server <- function(input, output, session) {
     locColorScale[,
                   col := as.character(col)]
 
+    # Cells shrink as the plate grows, so the marker has to follow
+    locMarkSize = switch(input$selPlateFormat,
+                         "96" = 11,
+                         "384" = 6,
+                         "1536" = 3)
+
     plotPlateHM(locDT,
                 inColVal = "hits",
                 inHoverLabel = "Hit",
                 inColors = NULL,
+                inColMark = "spiked",
+                inMarkLabel = "Spiked (true hit)",
+                inMarkSize = locMarkSize,
                 colorscale = locColorScale,
                 colorbar = list(tickvals = c(0.25, 0.75),
                                 ticktext = c("F", "T")))
   })
+
+  # Called hits scored against the wells that were actually spiked ----
+
+  output$tabHitsConf = renderTable({
+    cat("server:tabHitsConf\n")
+
+    locPerf = calcHitPerf(dataHits())
+
+    return(
+      data.frame(" " = c("Called hit", "Not called"),
+                 "Spiked" = c(locPerf[["TP"]], locPerf[["FN"]]),
+                 "Not spiked" = c(locPerf[["FP"]], locPerf[["TN"]]),
+                 check.names = FALSE)
+    )
+  },
+  digits = 0,
+  align = "lrr",
+  width = "100%")
+
+  output$tabHitsPerf = renderTable({
+    cat("server:tabHitsPerf\n")
+
+    locPerf = calcHitPerf(dataHits())
+
+    # NA whenever the rate has an empty denominator, e.g. no spiked wells
+    locPct = function(inVal) {
+      if (is.na(inVal))
+        return("n/a")
+      else
+        return(sprintf("%.1f%%", 100 * inVal))
+    }
+
+    return(
+      data.frame("Metric" = c("Sensitivity (TPR)",
+                              "False positive rate (FPR)",
+                              "Precision (PPV)"),
+                 "Value" = c(locPct(locPerf[["TPR"]]),
+                             locPct(locPerf[["FPR"]]),
+                             locPct(locPerf[["PPV"]])),
+                 check.names = FALSE)
+    )
+  },
+  align = "lr",
+  width = "100%")
   
   
   # Pop-overs ----
@@ -306,6 +401,18 @@ server <- function(input, output, session) {
              "alSSMDcrit",
              title = "SSMD criteria",
              content = helpTextServer[["alSSMDcrit"]],
+             trigger = "click")
+
+  addPopover(session,
+             "alSeed",
+             title = "Random seed",
+             content = helpTextServer[["nISeed"]],
+             trigger = "click")
+
+  addPopover(session,
+             "alHitPerf",
+             title = "Scoring called hits",
+             content = helpTextServer[["alHitPerf"]],
              trigger = "click")
   
   observeEvent(input$button_vBzprime, {

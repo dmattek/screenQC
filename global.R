@@ -39,6 +39,23 @@ library(RColorBrewer)
 ## Help text ----
 helpTextServer = list(
   chBrobust ="Calculate robust statistics: median instead of the mean, MAD instead of SD.",
+  nISeed = "<p>Seed of the random number generator.</p>
+  <p>The same seed and the same parameters always produce the same plate.
+  Changing a parameter then re-uses the same random noise, so that any change
+  in the quality indices comes from that parameter alone.</p>",
+  abResample = "Draw a new random plate from the same parameters.
+  Use it to see how much the quality indices vary between runs.",
+  alHitPerf = "<p>The wells spiked with the &quot;hit&quot; distribution are
+  known, so the wells called by the z-score threshold can be scored against
+  them. Only sample wells are counted; the controls are excluded.</p>
+  <p>On the plate above, the colour is the well <i>called</i> by the
+  threshold, while the circles mark the wells that were <i>really</i> spiked.
+  A circle on a &quot;T&quot; well is a true positive, a circle on an
+  &quot;F&quot; well a miss, and a &quot;T&quot; well without a circle a
+  false positive.</p>
+  <p>Lowering the threshold recovers more of the spiked wells (higher
+  sensitivity) at the cost of calling more inactive wells (higher false
+  positive rate). Set <i>#hits</i> above zero to populate the table.</p>",
   rBscreenType = "Choose antagonist when testing inhibitors, agonist for activators.",
   alPlateFormat = "Choose a plate format for synthetic data, e.g. 96-, 384-, 1536-well.",
   alSSMDcrit = "<p>Choose quality control level for the strictly 
@@ -316,6 +333,48 @@ calcHits = function(inDT,
   return(inDT)
 }
 
+# Compare called hits against the wells that were actually spiked, and
+# return the confusion matrix together with the rates derived from it.
+#
+# Only sample wells are counted: hit calling asks which test compounds are
+# active, so scoring the controls would credit the assay for recovering
+# positive controls it was calibrated on.
+calcHitPerf = function(inDT,
+                       inColTruth = "spiked",
+                       inColPred = "hits",
+                       inColType = "type",
+                       inWellType = list(ctrlNeg = "Ctrl Neg",
+                                         ctrlPos = "Ctrl Pos",
+                                         sample = "Sample")) {
+
+  locDT = inDT[get(inColType) == inWellType[["sample"]]]
+
+  locTruth = locDT[[inColTruth]]
+  locPred = locDT[[inColPred]]
+
+  locTP = sum(locTruth & locPred)
+  locFP = sum(!locTruth & locPred)
+  locFN = sum(locTruth & !locPred)
+  locTN = sum(!locTruth & !locPred)
+
+  # NA rather than NaN on an empty denominator, e.g. the true positive rate
+  # with no spiked wells, so that the caller can print it as "n/a"
+  locRate = function(inNum, inDen) {
+    if (inDen > 0)
+      return(inNum / inDen)
+    else
+      return(NA_real_)
+  }
+
+  return(list(TP = locTP,
+              FP = locFP,
+              FN = locFN,
+              TN = locTN,
+              TPR = locRate(locTP, locTP + locFN),
+              FPR = locRate(locFP, locFP + locTN),
+              PPV = locRate(locTP, locTP + locFP)))
+}
+
 
 ## Plotting ----
 
@@ -326,11 +385,19 @@ hmColors = rev(RColorBrewer::brewer.pal(n = 11,
 # Plot a single column of a plate data.table as a plotly heatmap.
 # Expects the row/col grid added by dataPlotHM() in server.R.
 # Pass inColors = NULL to supply a custom colorscale via ...
+#
+# inColMark names a logical column; the wells it flags are overlaid with a
+# marker, which lets a second, independent property be read off the same
+# plate, e.g. which of the called hits were really spiked. inMarkSize needs
+# to shrink as the plate format grows, since the cells do.
 plotPlateHM = function(inDT,
                        inColVal,
                        inHoverLabel,
                        inColType = "type",
                        inColors = hmColors,
+                       inColMark = NULL,
+                       inMarkLabel = "Marked",
+                       inMarkSize = 6,
                        ...) {
 
   # Rows are plotted bottom-up, hence the reversal of both the
@@ -367,7 +434,45 @@ plotPlateHM = function(inDT,
   if (!is.null(inColors))
     locArgs[["colors"]] = inColors
 
-  return(do.call(plot_ly, locArgs))
+  locP = do.call(plot_ly, locArgs)
+
+  if (is.null(inColMark))
+    return(locP)
+
+  # %in% TRUE rather than == TRUE, so that NA never selects a well
+  locMarkDT = inDT[get(inColMark) %in% TRUE]
+
+  if (nrow(locMarkDT) == 0L)
+    return(locP)
+
+  # A white dot with a dark rim, legible against either end of the
+  # underlying colour scale. inherit = FALSE keeps the heatmap's z and
+  # text attributes off this trace.
+  locP = add_trace(locP,
+                   x = as.character(locMarkDT[["col"]]),
+                   y = as.character(locMarkDT[["row"]]),
+                   type = "scatter",
+                   mode = "markers",
+                   name = inMarkLabel,
+                   marker = list(symbol = "circle",
+                                 size = inMarkSize,
+                                 color = "rgba(255,255,255,0.9)",
+                                 line = list(color = "rgb(40,40,40)",
+                                             width = 1)),
+                   hovertemplate = paste0(inMarkLabel, "<br>",
+                                          "Col: %{x}<br>",
+                                          "Row: %{y}",
+                                          "<extra></extra>"),
+                   showlegend = TRUE,
+                   inherit = FALSE)
+
+  # Horizontal legend below the plate, clear of the colourbar
+  locP = layout(locP,
+                legend = list(orientation = "h",
+                              x = 0,
+                              y = -0.15))
+
+  return(locP)
 }
 
 

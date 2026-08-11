@@ -10,7 +10,11 @@ The app illustrates quantitative concepts of [high-content screening](https://en
 
 The app generates synthetic data for a desired plate format (e.g. 96, 384, 1536-well). The data includes measurement samples, and negative and positive controls. The user can change the number of control wells, their sample mean and standard deviation. Additionally, "hits" with the mean and standard deviation corresponding to the positive control can be added to the dataset.
 
+Data generation is reproducible: a given random seed and a given set of parameters always produce the same plate. Changing a parameter re-uses the same random noise, so that the resulting change in the quality indices is the effect of that parameter alone. The *Resample* button draws a new plate from unchanged parameters, which shows how much the indices vary between runs.
+
 Synthetic data can be plotted as distributions, box-plots or heatmaps with raw or normalized data. Normalisations include the [z-score](https://en.wikipedia.org/wiki/Standard_score) and Normalised Percentage Inhibition.
+
+Because the app knows which wells were spiked with the "hit" distribution, the wells called by the z-score threshold can be scored against that ground truth. On the *Hits* heatmap the cell colour is the well *called* by the threshold, while a circle marks the wells that were *really* spiked: a circle on a called well is a true positive, a circle on an uncalled well a miss, and a called well without a circle a false positive. The same comparison is reported below the plate as a confusion matrix with the sensitivity, false positive rate and precision, which shows the trade-off involved in choosing a threshold. Only sample wells are counted; the controls are excluded.
 
 The app calculates the following plate quality indices:
 

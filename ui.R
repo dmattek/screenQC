@@ -21,50 +21,78 @@ myBody = dashboardBody(
             fluidRow(
               box(width = 12,
                   title = "Configuration",
-                  column(
-                    width = 3,
-                    selectInput("selPlateFormat",
-                                actionLink("alPlateFormat", "Plate format"),
-                                choices = list("96" = 96,
-                                               "384" = 384,
-                                               "1536" = 1536),
-                                selected = "384")
+                  fluidRow(
+                    column(
+                      width = 3,
+                      selectInput("selPlateFormat",
+                                  actionLink("alPlateFormat", "Plate format"),
+                                  choices = list("96" = 96,
+                                                 "384" = 384,
+                                                 "1536" = 1536),
+                                  selected = "384")
+                    ),
+
+                    column(
+                      width = 3,
+                      selectInput("selSSMDctrl",
+                                  actionLink("alSSMDcrit", "SSMD control"),
+                                  choices = list("Moderate" = "moderate",
+                                                 "Strong" = "strong",
+                                                 "Very strong" = "verystrong",
+                                                 "Extremely strong" = "extremelystrong"))),
+
+                    column(
+                      width = 3,
+
+                      radioButtons("rBscreenType",
+                                   "Screen type",
+                                   choices = list("Agonist" = "activation",
+                                                  "Antagonist" = "inhibition"),
+                                   selected = "inhibition"),
+                      bsTooltip('rBscreenType',
+                                helpTextServer[["rBscreenType"]],
+                                placement = "top",
+                                trigger = "hover",
+                                options = NULL)
+                    ),
+
+                    column(
+                      width = 3,
+                      checkboxInput("chBrobust",
+                                    "Robust stats",
+                                    value = F),
+                      bsTooltip('chBrobust',
+                                helpTextServer[["chBrobust"]],
+                                placement = "top",
+                                trigger = "hover",
+                                options = NULL)
+                    )
                   ),
-                  
-                  column(
-                    width = 3,
-                    selectInput("selSSMDctrl",
-                                actionLink("alSSMDcrit", "SSMD control"),
-                                choices = list("Moderate" = "moderate",
-                                               "Strong" = "strong",
-                                               "Very strong" = "verystrong",
-                                               "Extremely strong" = "extremelystrong"))),
-                  
-                  column(
-                    width = 3,
-                    
-                    radioButtons("rBscreenType",
-                                 "Scren type",
-                                 choices = list("Agonist" = "activation",
-                                                "Antagonist" = "inhibition"),
-                                 selected = "inhibition"),
-                    bsTooltip('rBscreenType', 
-                              helpTextServer[["rBscreenType"]], 
-                              placement = "top", 
-                              trigger = "hover", 
-                              options = NULL)
-                  ),
-                  
-                  column(
-                    width = 3,
-                    checkboxInput("chBrobust",
-                                  "Robust stats",
-                                  value = F),
-                    bsTooltip('chBrobust', 
-                              helpTextServer[["chBrobust"]], 
-                              placement = "top", 
-                              trigger = "hover", 
-                              options = NULL)
+
+                  fluidRow(
+                    column(
+                      width = 3,
+                      numericInput("nISeed",
+                                   actionLink("alSeed", "Random seed"),
+                                   value = 1,
+                                   min = 1,
+                                   max = 9999,
+                                   step = 1)
+                    ),
+
+                    column(
+                      width = 3,
+                      # Nudged down to line up with the input next to it,
+                      # which carries a label
+                      div(style = "margin-top: 25px;",
+                          actionButton("abResample",
+                                       "Resample")),
+                      bsTooltip('abResample',
+                                helpTextServer[["abResample"]],
+                                placement = "top",
+                                trigger = "hover",
+                                options = NULL)
+                    )
                   )
               ),
             ),
@@ -110,10 +138,21 @@ myBody = dashboardBody(
                          plotlyOutput("plotlyHMnpi", height = 400)),
                 tabPanel("Hits",
                          plotlyOutput("plotlyHMhits", height = 400),
-                         sliderInput("slHitsThr", 
-                                     "z-score threshold", 
-                                     min = -6, max = 6, 
-                                     value = -3))
+                         sliderInput("slHitsThr",
+                                     "z-score threshold",
+                                     min = -6, max = 6,
+                                     value = -3),
+
+                         hr(),
+                         h4(actionLink("alHitPerf",
+                                       "Called hits vs. spiked wells")),
+
+                         fluidRow(
+                           column(width = 6,
+                                  tableOutput("tabHitsConf")),
+                           column(width = 6,
+                                  tableOutput("tabHitsPerf"))
+                         ))
               ),
               #valueBoxOutput("vBzfactor"),
               valueBoxOutput("vBzprime"),

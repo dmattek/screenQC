@@ -23,20 +23,26 @@ Deployment target is shinyapps.io (`rsconnect/shinyapps.io/macdobry/screenQC.dcf
 
 Classic three-file Shiny layout, auto-sourced by Shiny in the order `global.R` → `ui.R` → `server.R`. Nothing is explicitly `source()`d, so anything `ui.R` needs (e.g. the `helpTextServer` list of tooltip/popover HTML) must be defined in `global.R`.
 
-- **`global.R`** — package bootstrap, `helpTextServer` help strings, all statistics (`calcZfactor`, `calcZprime`, `calcSSMD` quality indices; `calcZscore`, `calcNPI` normalisations; `calcHits`), and the shared view helpers `plotPlateHM` / `clickableValueBox`.
+- **`global.R`** — package bootstrap, `helpTextServer` help strings, all statistics (`calcZfactor`, `calcZprime`, `calcSSMD` quality indices; `calcZscore`, `calcNPI` normalisations; `calcHits`, `calcHitPerf`), and the shared view helpers `plotPlateHM` / `clickableValueBox`.
 - **`ui.R`** — `shinydashboard` page: config row, three parameter boxes (neg control / pos control / hits), a `tabBox` of plots, and two clickable `valueBox`es.
 - **`server.R`** — reactive data generation and all renderers.
 
 ### Reactive data flow
 
 ```
-dataCtrlNeg()  ─┐
-dataCtrlPos()  ─┼─ rbind ─> dataMain() ─> dataPlotHM() ─> the 4 plotly heatmaps
-dataSamples()  ─┘              │
-                               └─> valueBoxes (Z-prime, SSMD), density & box plots
+seedBase() ─> dataCtrlNeg()  ─┐
+           ─> dataCtrlPos()  ─┼─ rbind ─> dataMain() ─> dataPlotHM() ─> raw/zScore/NPI heatmaps
+           ─> dataSamples()  ─┘              │              │
+                                             │              └─> dataHits() ─> hits heatmap
+                                             │                          └─> confusion + rate tables
+                                             └─> valueBoxes (Z-prime, SSMD), density & box plots
 ```
 
-`dataMain()` is a two-column `data.table` (`type`, `meas`). Samples are drawn with the **negative control's** mean/sd; "hits" then overwrite `slHitsN` randomly chosen sample rows with the hit mean/sd. Sample count is `plateFormat - nCtrlPos - nCtrlNeg`, so control well counts eat into the sample wells.
+`dataMain()` is a three-column `data.table` (`type`, `meas`, `spiked`). Samples are drawn with the **negative control's** mean/sd; "hits" then overwrite `slHitsN` randomly chosen sample rows with the hit mean/sd and set `spiked = TRUE`. Sample count is `plateFormat - nCtrlPos - nCtrlNeg`, so control well counts eat into the sample wells — and on a 96-well plate with both control counts maxed there are fewer sample wells than the `#hits` slider allows, hence the `min()` clamp in `dataSamples()`.
+
+`spiked` is the **ground truth** for hit calling, kept separate from `hits` (the *called* wells, thresholded on z-score by `calcHits`). `calcHitPerf()` scores one against the other on the Hits tab. It counts sample wells only — scoring the controls would credit the assay for recovering positive controls it was calibrated on — and returns `NA` rather than `NaN` for rates with an empty denominator, which the tables print as "n/a".
+
+**Seeding.** `seedBase()` returns `10 * (input$nISeed + input$abResample)`, and each of the three draws calls `set.seed(seedBase() + k)` with its own `k`. Consequences worth knowing before touching it: the app is deterministic given (seed, parameters); clicking Resample bumps the base, yielding a fresh plate; and because `rnorm(n, m, s)` is `m + s*z` off a fixed `z` stream, changing a mean or SD slider *preserves the noise pattern* and shows only that parameter's effect. The `* 10` keeps the per-draw offsets from colliding with a neighbouring click's base — don't drop it, and keep `k` below 10. Note `set.seed()` sets global RNG state; all randomness in the app lives in these three reactives.
 
 `dataPlotHM()` `cbind`s a plate grid (`expand.grid` over row letters × column numbers, per 96/384/1536 format) onto `dataMain()` in row order. Because controls are `rbind`ed first, they always land in the first grid positions — the layout is positional, not label-driven.
 
@@ -49,6 +55,7 @@ dataSamples()  ─┘              │
 ### Shared view helpers
 
 - **`plotPlateHM(inDT, inColVal, inHoverLabel, ...)`** renders any column of a `dataPlotHM()` table as a plotly heatmap (matrix reshape, row reversal, `type` hover matrix). All four heatmap tabs go through it. Extra `...` args pass straight to `plot_ly`; pass `inColors = NULL` to supply a custom `colorscale` instead of the default `hmColors` palette, as the Hits tab does.
+  - `inColMark` names a logical column whose wells get a marker overlaid as a second scatter trace, letting one plate carry two properties at once. The Hits tab uses it for `spiked`, so cell colour is the *called* hit and the circle is the *true* one. The trace needs `inherit = FALSE` or it picks up the heatmap's `z`/`text`; `%in% TRUE` guards against `NA`; and `inMarkSize` must shrink as the plate format grows (11/6/3 for 96/384/1536) because the cells do. The marker is a white fill with a dark rim deliberately — the two-colour hit palette is mid-dark blue and orange, so a plain dark outline would disappear on the blue.
 - **`clickableValueBox(value, subtitle, color, id)`** builds a `valueBox` that doubles as an action button: it patches `children[[1]]$attribs` to `class = "action-button"` with id `button_<id>`. `observeEvent(input$button_<id>)` in `server.R` then opens the matching `bsModal` (`modal_<id>`) declared in `ui.R` — adding a clickable box means touching all three pieces.
 
 ### Gotchas
