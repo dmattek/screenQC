@@ -209,7 +209,10 @@ calcZscore = function(inDT,
                                         ctrlPos = "Ctrl Pos",
                                         sample = "Sample"),
                       inRobust = F) {
-  
+
+  # Work on a copy; the caller's data.table must not gain columns
+  inDT = copy(inDT)
+
   if(inRobust) {
     locDTaggr = inDT[get(inColType) == inWellType[["sample"]],
                      .(wellMn = median(get(inColMeas)),
@@ -235,9 +238,12 @@ calcNPI = function(inDT,
                    inScreenType = c("inhibition",
                                     "activation"),
                    inRobust = F) {
-  
+
   inScreenType = match.arg(inScreenType)
-  
+
+  # Work on a copy; the caller's data.table must not gain columns
+  inDT = copy(inDT)
+
   # Aggregate input data
   if(inRobust) {
     locDTaggr = inDT[get(inColType) %in% c(inWellType[["ctrlNeg"]],
@@ -280,9 +286,12 @@ calcHits = function(inDT,
                                      "activation"),
                     inThr = -3,
                     inRobust = F) {
-  
+
   inScreenType = match.arg(inScreenType)
-  
+
+  # Work on a copy; the caller's data.table must not gain columns
+  inDT = copy(inDT)
+
   if(inRobust) {
     locDTaggr = inDT[get(inColType) == inWellType[["sample"]],
                      .(wellMn = median(get(inColMeas)),
@@ -303,8 +312,84 @@ calcHits = function(inDT,
     inDT[,
          hits := zScore > inThr]
   }
-  
+
   return(inDT)
+}
+
+
+## Plotting ----
+
+# Default diverging palette for plate heatmaps
+hmColors = rev(RColorBrewer::brewer.pal(n = 11,
+                                        name = "RdYlBu"))
+
+# Plot a single column of a plate data.table as a plotly heatmap.
+# Expects the row/col grid added by dataPlotHM() in server.R.
+# Pass inColors = NULL to supply a custom colorscale via ...
+plotPlateHM = function(inDT,
+                       inColVal,
+                       inHoverLabel,
+                       inColType = "type",
+                       inColors = hmColors,
+                       ...) {
+
+  # Rows are plotted bottom-up, hence the reversal of both the
+  # axis labels and the matrix rows
+  locRow = rev(unique(inDT[["row"]]))
+  locCol = unique(inDT[["col"]])
+  locRev = seq(from = length(locRow),
+               to = 1,
+               by = -1)
+
+  locM = matrix(as.numeric(inDT[[inColVal]]),
+                nrow = length(locRow),
+                ncol = length(locCol))[locRev, ]
+
+  # Well types shown in the hover tooltip
+  locText = matrix(inDT[[inColType]],
+                   nrow = length(locRow),
+                   ncol = length(locCol))[locRev, ]
+
+  locArgs = list(
+    x = locCol,
+    y = locRow,
+    z = locM,
+    text = locText,
+    type = "heatmap",
+    hovertemplate = paste0(inHoverLabel, ": %{z}<br>",
+                           "Col: %{x}<br>",
+                           "Row: %{y}<br>",
+                           "Type: %{text}",
+                           "<extra></extra>"),
+    ...
+  )
+
+  if (!is.null(inColors))
+    locArgs[["colors"]] = inColors
+
+  return(do.call(plot_ly, locArgs))
+}
+
+
+## Value boxes ----
+
+# valueBox that behaves as an action button, so that clicking it
+# opens the bsModal named modal_<inId> declared in ui.R.
+# The button itself is exposed to the server as input$button_<inId>.
+clickableValueBox = function(inValue,
+                             inSubtitle,
+                             inColor,
+                             inId) {
+
+  locBox = valueBox(value = inValue,
+                    href = "#",
+                    subtitle = inSubtitle,
+                    color = inColor)
+
+  locBox$children[[1]]$attribs$class = "action-button"
+  locBox$children[[1]]$attribs$id = paste0("button_", inId)
+
+  return(locBox)
 }
 
 

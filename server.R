@@ -132,32 +132,34 @@ server <- function(input, output, session) {
     
     locZp = calcZprime(dataMain(),
                        inRobust = input$chBrobust)
-    
-    if(locZp > 0.5) {
-      locColor = "olive" 
-      locText = "excellent"      
-    } else if (locZp > 0) {
-      locColor = "orange" 
-      locText = "marginal"
+
+    # NaN when both controls have zero spread and identical means;
+    # the index is undefined rather than good or bad
+    if(is.nan(locZp)) {
+      locValue = "n/a"
+      locColor = "black"
+    } else {
+      if(locZp > 0.5) {
+        locColor = "olive"
+        locText = "excellent"
+      } else if (locZp > 0) {
+        locColor = "orange"
+        locText = "marginal"
+      }
+      else {
+        locColor = "red"
+        locText = "overlap"
+      }
+
+      locValue = sprintf("%.2f %s",
+                         locZp,
+                         locText)
     }
-    else {
-      locColor = "red"
-      locText = "overlap"
-    }
-    
-    
-    locBox = valueBox(
-      value = sprintf("%.2f %s", 
-                      locZp,
-                      locText), 
-      href = "#",
-      subtitle = "Z-prime", 
-      color = locColor)
-    
-    locBox$children[[1]]$attribs$class<-"action-button"
-    locBox$children[[1]]$attribs$id<-"button_vBzprime"
-    
-    return(locBox)
+
+    return(clickableValueBox(locValue,
+                             "Z-prime",
+                             locColor,
+                             "vBzprime"))
   })
   
   output$vBssmd = renderValueBox({
@@ -172,35 +174,37 @@ server <- function(input, output, session) {
            "strong" = {locCtrl = c(-3, -2, -1)},
            "verystrong" = {locCtrl = c(-5, -3, -2)},
            "extremelystrong" = {locCtrl = c(-7, -5, -3)})
-    
-    if(locSsmd <= locCtrl[1]) {
-      locColor = "olive" 
-      locText = "excellent"      
-    } else if (locSsmd <= locCtrl[2]) {
-      locColor = "teal" 
-      locText = "good"
-    }
-    else if (locSsmd <= locCtrl[3]) {
-      locColor = "orange"
-      locText = "inferior"
+
+    # NaN when both controls have zero spread and identical means;
+    # the index is undefined rather than good or bad
+    if(is.nan(locSsmd)) {
+      locValue = "n/a"
+      locColor = "black"
     } else {
-      locColor = "red"
-      locText = "poor"
+      if(locSsmd <= locCtrl[1]) {
+        locColor = "olive"
+        locText = "excellent"
+      } else if (locSsmd <= locCtrl[2]) {
+        locColor = "teal"
+        locText = "good"
+      }
+      else if (locSsmd <= locCtrl[3]) {
+        locColor = "orange"
+        locText = "inferior"
+      } else {
+        locColor = "red"
+        locText = "poor"
+      }
+
+      locValue = sprintf("%.2f %s",
+                         locSsmd,
+                         locText)
     }
-    
-    
-    locBox = valueBox(
-      value = sprintf("%.2f %s", 
-                      locSsmd,
-                      locText),
-      href = "#",
-      subtitle = "SSMD", 
-      color = locColor)
-    
-    locBox$children[[1]]$attribs$class<-"action-button"
-    locBox$children[[1]]$attribs$id<-"button_vBssmd"
-    
-    return(locBox)
+
+    return(clickableValueBox(locValue,
+                             "SSMD",
+                             locColor,
+                             "vBssmd"))
   })
   
   
@@ -236,170 +240,58 @@ server <- function(input, output, session) {
   
   output$plotlyHMraw = renderPlotly({
     cat("server:plotlyHMraw\n")
-    
-    locDT = dataPlotHM()
-    
-    # Convert data table to a matrix for plotly
-    # row&col numbers
-    locRow = rev(unique(locDT[["row"]]))
-    locCol = unique(locDT[["col"]])
-    
-    # data
-    locM = matrix(as.numeric(locDT[["meas"]]), 
-                  nrow = length(locRow),
-                  ncol = length(locCol))
-    locM = locM[seq(from = length(locRow),
-                    to = 1,
-                    by = -1),]
-    
-    # well types
-    locText = matrix(locDT[["type"]], 
-                     nrow = length(locRow),
-                     ncol = length(locCol))
-    locText = locText[seq(from = length(locRow),
-                          to = 1,
-                          by = -1),]
 
-    plot_ly(
-      x = locCol, 
-      y = locRow,
-      z = locM, 
-      text = locText,
-      type = "heatmap",
-      hovertemplate = paste("Meas: %{z}<br>",
-                            "Col: %{x}<br>",
-                            "Row: %{y}<br>",
-                            "Type: %{text}",
-                            "<extra></extra>"), 
-      colors = rev(RColorBrewer::brewer.pal(n = 11, 
-                                            name = "RdYlBu")))
-
+    plotPlateHM(dataPlotHM(),
+                inColVal = "meas",
+                inHoverLabel = "Meas")
   })
-  
+
   output$plotlyHMzscore = renderPlotly({
     cat("server:plotlyHMzscore\n")
-    
-    locDT = dataPlotHM()
-    locDT = calcZscore(locDT,
+
+    locDT = calcZscore(dataPlotHM(),
                        inRobust = input$chBrobust)
-    
-    locRow = rev(unique(locDT[["row"]]))
-    locCol = unique(locDT[["col"]])
-    locM = matrix(as.numeric(locDT[["zScore"]]), 
-                  nrow = length(locRow),
-                  ncol = length(locCol))
-    locM = locM[seq(from = length(locRow),
-                    to = 1,
-                    by = -1),]
-    
-    locText = matrix(locDT[["type"]], 
-                     nrow = length(locRow),
-                     ncol = length(locCol))
-    locText = locText[seq(from = length(locRow),
-                          to = 1,
-                          by = -1),]
-    
-    plot_ly(
-      x = locCol, 
-      y = locRow,
-      z = locM, 
-      text = locText,
-      type = "heatmap",
-      hovertemplate = paste("z-score: %{z}<br>",
-                            "Col: %{x}<br>",
-                            "Row: %{y}<br>",
-                            "Type: %{text}",
-                            "<extra></extra>"), 
-      colors = rev(RColorBrewer::brewer.pal(n = 11, 
-                                            name = "RdYlBu")))
+
+    plotPlateHM(locDT,
+                inColVal = "zScore",
+                inHoverLabel = "z-score")
   })
-  
+
   output$plotlyHMnpi = renderPlotly({
     cat("server:plotlyHMnpi\n")
-    
-    locDT = dataPlotHM()
-    locDT = calcNPI(locDT,
+
+    locDT = calcNPI(dataPlotHM(),
                     inRobust = input$chBrobust,
                     inScreenType = input$rBscreenType)
-    
-    locRow = rev(unique(locDT[["row"]]))
-    locCol = unique(locDT[["col"]])
-    locM = matrix(as.numeric(locDT[["NPI"]]), 
-                  nrow = length(locRow),
-                  ncol = length(locCol))
-    locM = locM[seq(from = length(locRow),
-                    to = 1,
-                    by = -1),]
-    
-    locText = matrix(locDT[["type"]], 
-                     nrow = length(locRow),
-                     ncol = length(locCol))
-    locText = locText[seq(from = length(locRow),
-                          to = 1,
-                          by = -1),]
-    
-    plot_ly(
-      x = locCol, 
-      y = locRow,
-      z = locM, 
-      text = locText,
-      type = "heatmap",
-      hovertemplate = paste("NPI: %{z}<br>",
-                            "Col: %{x}<br>",
-                            "Row: %{y}<br>",
-                            "Type: %{text}",
-                            "<extra></extra>"), 
-      colors = rev(RColorBrewer::brewer.pal(n = 11, 
-                                            name = "RdYlBu")))
+
+    plotPlateHM(locDT,
+                inColVal = "NPI",
+                inHoverLabel = "NPI")
   })
-  
+
   output$plotlyHMhits = renderPlotly({
     cat("server:plotlyHMhits\n")
-    
-    locDT = dataPlotHM()
-    locDT = calcHits(locDT,
+
+    locDT = calcHits(dataPlotHM(),
                      inRobust = input$chBrobust,
                      inScreenType = input$rBscreenType,
                      inThr = input$slHitsThr)
-    
-    locRow = rev(unique(locDT[["row"]]))
-    locCol = unique(locDT[["col"]])
-    locM = matrix(as.numeric(locDT[["hits"]]), 
-                  nrow = length(locRow),
-                  ncol = length(locCol))
-    locM = locM[seq(from = length(locRow),
-                    to = 1,
-                    by = -1),]
-    
-    locText = matrix(locDT[["type"]], 
-                     nrow = length(locRow),
-                     ncol = length(locCol))
-    locText = locText[seq(from = length(locRow),
-                          to = 1,
-                          by = -1),]
-    
+
+    # Two-colour discrete scale for the logical hit column
     # From: https://stackoverflow.com/a/49944091/1898713
     locColorScale <- data.table(z=c(0, 0.5, 0.5, 1),
-                                col=rep(ggthemes::tableau_color_pal(palette = "Color Blind")(2), 
+                                col=rep(ggthemes::tableau_color_pal(palette = "Color Blind")(2),
                                         each = 2))
     locColorScale[,
                   col := as.character(col)]
-    plot_ly(
-      x = locCol, 
-      y = locRow,
-      z = locM, 
-      text = locText,
-      type = "heatmap",
-      hovertemplate = paste("Hit: %{z}<br>",
-                            "Col: %{x}<br>",
-                            "Row: %{y}<br>",
-                            "Type: %{text}",
-                            "<extra></extra>"),
-      colorscale = locColorScale,
-      colorbar=list(tickvals=c(0.25,0.75), 
-                    ticktext=c("F","T"))
-    )
-    
+
+    plotPlateHM(locDT,
+                inColVal = "hits",
+                inHoverLabel = "Hit",
+                inColors = NULL,
+                colorscale = locColorScale,
+                colorbar = list(tickvals = c(0.25, 0.75),
+                                ticktext = c("F", "T")))
   })
   
   
