@@ -15,7 +15,16 @@ R -e "shiny::runApp('.')"
 # Or in RStudio: open screenQC.Rproj, then Run App from server.R / ui.R
 ```
 
-There is no build step, test suite, or linter. Dependencies are auto-installed on startup by the check block at the top of `global.R`; add any new package to `required_packages` there *and* to the `install.packages` snippet in `README.md`.
+```r
+# Tests (from the repository root; exit status 1 on failure)
+Rscript tests/run_all.R
+Rscript tests/run_all.R -v        # full output per file
+Rscript tests/test_layout.R       # a single file
+```
+
+There is no build step or linter. Dependencies are auto-installed on startup by the check block at the top of `global.R`; add any new package to `required_packages` there *and* to the `install.packages` snippet in `README.md`.
+
+Tests are plain R scripts driven by `shiny::testServer`, with no test framework — see `tests/README.md` for what each file guards. **When you add a server input, add it to `appInputs()` in `tests/helper.R`**, or tests fail inside the server with an obscure error about the missing value; `testServer` applies none of the defaults declared in `ui.R`.
 
 Deployment target is shinyapps.io (`rsconnect/shinyapps.io/macdobry/screenQC.dcf`), published from RStudio.
 
