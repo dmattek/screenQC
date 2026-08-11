@@ -132,6 +132,27 @@ server <- function(input, output, session) {
     return(locDT)
   })
   
+  # Colour limits for the raw heatmap, derived from the distribution
+  # parameters rather than from the drawn values, so that the scale holds
+  # still while resampling or dragging the hit threshold
+  rawZlim = reactive({
+    cat("server:rawZlim\n")
+
+    locMn = c(input$slCtrlNegMn, input$slCtrlPosMn)
+    locSd = c(input$slCtrlNegSd, input$slCtrlPosSd)
+
+    if (input$slHitsN > 0) {
+      locMn = c(locMn, input$slHitsMn)
+      locSd = c(locSd, input$slHitsSd)
+    }
+
+    # Artifacts only ever shift wells in the direction of their sign
+    locArt = c(min(0, input$slGradRow) + min(0, input$slGradCol) + min(0, input$slEdge),
+               max(0, input$slGradRow) + max(0, input$slGradCol) + max(0, input$slEdge))
+
+    return(list(zmin = min(locMn) - 3 * max(locSd) + locArt[1],
+                zmax = max(locMn) + 3 * max(locSd) + locArt[2]))
+  })
 
   output$vBzfactor = renderValueBox({
     cat("server:vBzfactor\n")
@@ -232,7 +253,7 @@ server <- function(input, output, session) {
     
     ggplot(data = dataPlate(),
            aes(x = meas,
-               y = ..density..)) +
+               y = after_stat(density))) +
       geom_density(aes(fill = type), 
                    alpha = 0.5) +
       scale_fill_tableau(palette = "Tableau 10", 
@@ -262,7 +283,9 @@ server <- function(input, output, session) {
 
     plotPlateHM(dataPlate(),
                 inColVal = "meas",
-                inHoverLabel = "Meas")
+                inHoverLabel = "Meas",
+                zmin = rawZlim()[["zmin"]],
+                zmax = rawZlim()[["zmax"]])
   })
 
   output$plotlyHMzscore = renderPlotly({
@@ -271,9 +294,12 @@ server <- function(input, output, session) {
     locDT = calcZscore(dataPlate(),
                        inRobust = input$chBrobust)
 
+    # Symmetric about 0 and matching the range of the threshold slider
     plotPlateHM(locDT,
                 inColVal = "zScore",
-                inHoverLabel = "z-score")
+                inHoverLabel = "z-score",
+                zmin = -6,
+                zmax = 6)
   })
 
   output$plotlyHMnpi = renderPlotly({
@@ -283,9 +309,13 @@ server <- function(input, output, session) {
                     inRobust = input$chBrobust,
                     inScreenType = input$rBscreenType)
 
+    # 0 is the negative control and 100 the positive control by construction,
+    # with margin for wells falling outside that span
     plotPlateHM(locDT,
                 inColVal = "NPI",
-                inHoverLabel = "NPI")
+                inHoverLabel = "NPI",
+                zmin = -25,
+                zmax = 125)
   })
 
   # Called hits, shared by the heatmap and the scoring tables below
@@ -325,6 +355,10 @@ server <- function(input, output, session) {
                 inMarkLabel = "Spiked (true hit)",
                 inMarkSize = locMarkSize,
                 colorscale = locColorScale,
+                # Pinned, so that a plate with nothing called still renders
+                # as F rather than filling with one flat extreme
+                zmin = 0,
+                zmax = 1,
                 colorbar = list(tickvals = c(0.25, 0.75),
                                 ticktext = c("F", "T")))
   })

@@ -7,17 +7,10 @@
 
 myHeader = dashboardHeader(title = "screenQC")
 
-mySidebar = dashboardSidebar(
-  sidebarMenu(
-    menuItem("Dashboard", 
-             tabName = "dashboard", 
-             icon = icon("dashboard"))),
-  disable = T)
+# The app is a single page; the sidebar exists only to be switched off
+mySidebar = dashboardSidebar(disable = T)
 
 myBody = dashboardBody(
-  tabItems(
-    # First tab content
-    tabItem(tabName = "dashboard",
             helpLinkScript,
 
             fluidRow(
@@ -204,13 +197,11 @@ myBody = dashboardBody(
                       trigger = "click"),
               
               valueBoxOutput("vBssmd"),
-              bsModal("modal_vBssmd", 
-                      "SSMD", 
+              bsModal("modal_vBssmd",
+                      "SSMD",
                       HTML(helpTextServer[["alSSMDinfo"]]),
                       trigger = "click")
             )
-    )
-  )
 )
 
 
