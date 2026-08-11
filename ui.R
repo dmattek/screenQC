@@ -101,6 +101,19 @@ myBody = dashboardBody(
                                                  "Edge columns" = "edge",
                                                  "Interleaved" = "spread"),
                                   selected = "first")
+                    ),
+
+                    column(
+                      width = 3,
+                      # Nudged down to line up with the labelled inputs
+                      div(style = "margin-top: 25px;",
+                          downloadButton("dbData",
+                                         "Download CSV")),
+                      bsTooltip('dbData',
+                                helpTextServer[["dbData"]],
+                                placement = "top",
+                                trigger = "hover",
+                                options = NULL)
                     )
                   )
               ),

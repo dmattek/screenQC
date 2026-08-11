@@ -20,6 +20,8 @@ Hits can be called on the raw measurement, on the z-score, or on the NPI, with t
 
 Because the app knows which wells were spiked with the "hit" distribution, the wells called by the threshold can be scored against that ground truth. On the *Hits* heatmap the cell colour is the well *called* by the threshold, while a circle marks the wells that were *really* spiked: a circle on a called well is a true positive, a circle on an uncalled well a miss, and a called well without a circle a false positive. The same comparison is reported below the plate as a confusion matrix with the sensitivity, false positive rate and precision, which shows the trade-off involved in choosing a threshold. Only sample wells are counted; the controls are excluded.
 
+The generated plate can be downloaded as a CSV file in long format, one row per well, with the well identifier and position, the well type, the ground truth of which wells were spiked, the raw measurement, both normalisations and the current hit call. The file name records the seed and resample count that produced the plate, so an export can always be regenerated in the app.
+
 The app calculates the following plate quality indices:
 
 - [SSMD](https://en.wikipedia.org/wiki/Strictly_standardized_mean_difference), strictly standardized mean difference,

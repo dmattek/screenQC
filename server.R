@@ -329,6 +329,55 @@ server <- function(input, output, session) {
                     inThr = input$slHitsThr))
   })
 
+  # The plate in long format, one row per well ----
+  dataExport = reactive({
+    cat("server:dataExport\n")
+
+    # dataHits() only carries the column its own metric thresholded on, so
+    # add both normalisations to give the same export whatever is selected
+    locDT = calcZscore(dataHits(),
+                       inRobust = input$chBrobust)
+
+    locDT = calcNPI(locDT,
+                    inRobust = input$chBrobust,
+                    inScreenType = input$rBscreenType)
+
+    # hits alone cannot be read without knowing what produced it
+    locDT[, `:=`(well = paste0(row, col),
+                 zScore = signif(zScore, 4),
+                 NPI = signif(NPI, 4),
+                 hitMetric = hitMetrics[[input$selHitMetric]][["name"]],
+                 hitThr = input$slHitsThr)]
+
+    # Row-major, the order a plate is usually read in
+    setorder(locDT, rowIdx, colIdx)
+
+    return(locDT[,
+                 .(well, row, col, type, spiked, meas,
+                   zScore, NPI, hits, hitMetric, hitThr)])
+  })
+
+  output$dbData = downloadHandler(
+    filename = function() {
+      # Same guard as seedBase(): the numeric input is NA while being edited
+      locSeed = suppressWarnings(as.integer(input$nISeed))
+      if (length(locSeed) == 0L || is.na(locSeed))
+        locSeed = 1L
+
+      # Seed and resample count are what make the plate reproducible
+      return(
+        sprintf("screenQC_%swell_seed%d_resample%d.csv",
+                input$selPlateFormat,
+                locSeed,
+                as.integer(input$abResample))
+      )
+    },
+
+    content = function(file) {
+      fwrite(dataExport(), file)
+    }
+  )
+
   output$plotlyHMhits = renderPlotly({
     cat("server:plotlyHMhits\n")
 

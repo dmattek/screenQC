@@ -45,6 +45,9 @@ helpTextServer = list(
   in the quality indices comes from that parameter alone.</p>",
   abResample = "Draw a new random plate from the same parameters.
   Use it to see how much the quality indices vary between runs.",
+  dbData = "Download the plate as a CSV file, one row per well, with the raw
+  measurement, both normalisations, the ground truth and the current hit call.
+  The file name records the seed and resample count that generated it.",
   alCtrlLayout = "<p>Where the control wells sit on the plate.</p>
   <p><i>First columns</i> fills the plate from column 1, <i>edge columns</i>
   puts the controls on the outer columns, and <i>interleaved</i> spreads them
